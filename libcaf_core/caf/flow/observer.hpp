@@ -14,6 +14,7 @@
 #include "caf/flow/observer_base.hpp"
 #include "caf/flow/subscription.hpp"
 #include "caf/intrusive_ptr.hpp"
+#include "caf/logger.hpp"
 #include "caf/make_counted.hpp"
 #include "caf/ref_counted.hpp"
 #include "caf/span.hpp"
@@ -146,8 +147,10 @@ public:
 
   using value_type = typename Buffer::value_type;
 
-  buffer_writer_impl(coordinator* ctx, buffer_ptr buf) : ctx_(ctx), buf_(buf) {
-    // nop
+  buffer_writer_impl(coordinator* ctx, buffer_ptr buf)
+    : ctx_(ctx), buf_(std::move(buf)) {
+    CAF_ASSERT(ctx_ != nullptr);
+    CAF_ASSERT(buf_ != nullptr);
   }
 
   void on_consumer_ready() override {
@@ -155,11 +158,17 @@ public:
   }
 
   void on_consumer_cancel() override {
-    ctx_->schedule_fn([ptr{strong_ptr()}] { ptr->on_cancel(); });
+    CAF_LOG_TRACE("");
+    ctx_->schedule_fn([ptr{strong_ptr()}] {
+      CAF_LOG_TRACE("");
+      ptr->on_cancel();
+    });
   }
 
   void on_consumer_demand(size_t demand) override {
+    CAF_LOG_TRACE(CAF_ARG(demand));
     ctx_->schedule_fn([ptr{strong_ptr()}, demand] { //
+      CAF_LOG_TRACE(CAF_ARG(demand));
       ptr->on_demand(demand);
     });
   }
@@ -173,11 +182,13 @@ public:
   }
 
   void on_next(span<const value_type> items) override {
+    CAF_LOG_TRACE(CAF_ARG(items));
     if (buf_)
       buf_->push(items);
   }
 
   void on_complete() override {
+    CAF_LOG_TRACE("");
     if (buf_) {
       buf_->close();
       buf_ = nullptr;
@@ -186,6 +197,7 @@ public:
   }
 
   void on_error(const error& what) override {
+    CAF_LOG_TRACE(CAF_ARG(what));
     if (buf_) {
       buf_->abort(what);
       buf_ = nullptr;
@@ -194,15 +206,19 @@ public:
   }
 
   void on_subscribe(subscription sub) override {
+    CAF_LOG_TRACE("");
     if (buf_ && !sub_) {
+      CAF_LOG_DEBUG("add subscription");
       sub_ = std::move(sub);
       sub_.request(buf_->capacity());
     } else {
+      CAF_LOG_DEBUG("already have a subscription");
       sub.cancel();
     }
   }
 
   void dispose() override {
+    CAF_LOG_TRACE("");
     on_complete();
   }
 
@@ -220,11 +236,13 @@ public:
 
 private:
   void on_demand(size_t n) {
+    CAF_LOG_TRACE(CAF_ARG(n));
     if (sub_)
       sub_.request(n);
   }
 
   void on_cancel() {
+    CAF_LOG_TRACE("");
     if (sub_) {
       sub_.cancel();
       sub_ = nullptr;

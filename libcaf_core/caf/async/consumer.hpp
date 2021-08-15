@@ -17,13 +17,9 @@ public:
   /// Called to signal that the producer started emitting items.
   virtual void on_producer_ready() = 0;
 
-  /// Called to signal to the consumer that the producer added at least one item
-  /// to a previously empty source.
+  /// Called to signal to the consumer that the producer added an item to a
+  /// previously empty source or completed the flow of events.
   virtual void on_producer_wakeup() = 0;
-
-  /// Called to signal that the producer stopped due to an error.
-  /// @note The producer signals a regular close in-line with the data.
-  virtual void on_producer_abort(const error& reason) = 0;
 
   /// Increases the reference count of the consumer.
   virtual void ref_consumer() const noexcept = 0;

@@ -10,6 +10,7 @@
 #include "caf/async/consumer.hpp"
 #include "caf/async/producer.hpp"
 #include "caf/config.hpp"
+#include "caf/defaults.hpp"
 #include "caf/error.hpp"
 #include "caf/intrusive_ptr.hpp"
 #include "caf/make_counted.hpp"
@@ -17,8 +18,35 @@
 #include "caf/ref_counted.hpp"
 #include "caf/sec.hpp"
 #include "caf/span.hpp"
+#include "caf/unit.hpp"
 
 namespace caf::async {
+
+/// Policy type for having `consume` call `on_error` immediately after the
+/// producer has aborted even if the buffer still contains events.
+struct prioritize_errors_t {
+  static constexpr bool calls_on_error = true;
+};
+
+/// @relates prioritize_errors_t
+constexpr auto prioritize_errors = prioritize_errors_t{};
+
+/// Policy type for having `consume` call `on_error` only after processing all
+/// events from the buffer.
+struct delay_errors_t {
+  static constexpr bool calls_on_error = true;
+};
+
+/// @relates delay_errors_t
+constexpr auto delay_errors = delay_errors_t{};
+
+/// Policy type for having `consume` treat errors as ordinary shutdowns.
+struct ignore_errors_t {
+  static constexpr bool calls_on_error = false;
+};
+
+/// @relates ignore_errors_t
+constexpr auto ignore_errors = ignore_errors_t{};
 
 /// A bounded buffer for transmitting events from one producer to one consumer.
 template <class T>
@@ -40,7 +68,7 @@ public:
 
   /// Appends to the buffer and calls `on_producer_wakeup` on the consumer if
   /// the buffer becomes non-empty.
-  void push(span<const T> items) {
+  size_t push(span<const T> items) {
     std::unique_lock guard{mtx_};
     CAF_ASSERT(producer_ != nullptr);
     CAF_ASSERT(!closed_);
@@ -48,30 +76,72 @@ public:
     wr_pos_ += items.size();
     if (size() == items.size() && consumer_)
       consumer_->on_producer_wakeup();
+    return capacity() - size();
   }
 
-  /// Consumes up to `demand` items from the buffer with `fn`.
-  /// @returns `true` if no more elements are available and the buffer has been
-  ///          closed by the producer, `false` otherwise.
-  template <class F>
-  bool consume(size_t demand, F fn) {
+  size_t push(const T& item) {
+    return push(make_span(&item, 1));
+  }
+
+  /// Consumes up to `demand` items from the buffer with `on_next`, ignoring any
+  /// errors set by the producer.
+  /// @tparam Policy Either `instant_error_t` or `delay_error_t`. Instant
+  ///                error propagation requires also passing `on_error` handler.
+  ///                Delaying errors without passing an `on_error` handler
+  ///                effectively suppresses errors.
+  /// @returns `true` if no more elements are available, `false` otherwise.
+  template <class Policy, class OnNext, class OnError = unit_t>
+  bool
+  consume(Policy, size_t demand, OnNext on_next, OnError on_error = OnError{}) {
+    static constexpr size_t local_buf_size = 16;
+    if constexpr (Policy::calls_on_error)
+      static_assert(!std::is_same_v<OnError, unit_t>,
+                    "Policy requires an on_error handler");
+    else
+      static_assert(std::is_same_v<OnError, unit_t>,
+                    "Policy prohibits an on_error handler");
+    T local_buf[local_buf_size];
     std::unique_lock guard{mtx_};
     CAF_ASSERT(demand > 0);
     CAF_ASSERT(consumer_ != nullptr);
-    if (auto n = std::min(demand, size()); n > 0) {
+    if constexpr (std::is_same_v<Policy, prioritize_errors_t>) {
+      if (err_) {
+        on_error(err_);
+        consumer_ = nullptr;
+        return true;
+      }
+    }
+    auto next_n = [this, &demand] {
+      return std::min({local_buf_size, demand, size()});
+    };
+    for (auto n = next_n(); n > 0; n = next_n()) {
       auto first = buf_ + rd_pos_;
-      fn(make_span(first, n));
+      std::move(first, first + n, local_buf);
       std::destroy(first, first + n);
       rd_pos_ += n;
       shift_elements();
       signal_demand(n);
-      return false;
-    } else if (!closed_) {
+      guard.unlock();
+      on_next(make_span(local_buf, n));
+      demand -= n;
+      guard.lock();
+    }
+    if (!empty() || !closed_) {
       return false;
     } else {
+      if constexpr (std::is_same_v<Policy, delay_errors_t>) {
+        if (err_)
+          on_error(err_);
+      }
       consumer_ = nullptr;
       return true;
     }
+  }
+
+  /// Checks whether there is any pending data in the buffer.
+  bool has_data() const noexcept {
+    std::unique_lock guard{mtx_};
+    return !empty();
   }
 
   /// Closes the buffer by request of the producer.
@@ -85,12 +155,13 @@ public:
   }
 
   /// Closes the buffer and signals an error by request of the producer.
-  void abort(const error& reason) {
+  void abort(error reason) {
     std::unique_lock guard{mtx_};
     closed_ = true;
+    err_ = std::move(reason);
     producer_ = nullptr;
-    if (consumer_) {
-      consumer_->on_producer_abort(reason);
+    if (empty() && consumer_) {
+      consumer_->on_producer_wakeup();
       consumer_ = nullptr;
     }
   }
@@ -131,6 +202,8 @@ private:
   void ready() {
     producer_->on_consumer_ready();
     consumer_->on_producer_ready();
+    if (!empty())
+      consumer_->on_producer_wakeup();
   }
 
   size_t empty() const noexcept {
@@ -170,7 +243,7 @@ private:
   }
 
   /// Guards access to all other member variables.
-  std::mutex mtx_;
+  mutable std::mutex mtx_;
 
   /// Allocated to max_in_flight_ * 2, but at most holds max_in_flight_
   /// elements at any point in time. We dynamically shift elements into the
@@ -195,6 +268,9 @@ private:
 
   /// Stores whether `close` has been called.
   bool closed_ = false;
+
+  /// Stores the abort reason.
+  error err_;
 
   /// Callback handle to the consumer.
   consumer_ptr consumer_;
@@ -228,16 +304,17 @@ struct resource_ctrl : ref_counted {
     }
   }
 
-  buffer_ptr open() {
+  buffer_ptr try_open() {
     std::unique_lock guard{mtx};
     if (buf) {
       auto res = buffer_ptr{};
       res.swap(buf);
       return res;
     }
+    return nullptr;
   }
 
-  std::mutex mtx;
+  mutable std::mutex mtx;
   buffer_ptr buf;
 };
 
@@ -254,7 +331,7 @@ public:
 
   using buffer_ptr = bounded_buffer_ptr<T>;
 
-  consumer_resource(buffer_ptr buf) {
+  explicit consumer_resource(buffer_ptr buf) {
     ctrl_.emplace(std::move(buf));
   }
 
@@ -267,11 +344,14 @@ public:
   /// Tries to open the resource for reading from the buffer. The first `open`
   /// wins on concurrent access.
   /// @returns a pointer to the buffer on success, `nullptr` otherwise.
-  buffer_ptr open() {
-    if (ctrl_)
-      return ctrl_->open();
-    else
+  buffer_ptr try_open() {
+    if (ctrl_) {
+      auto res = ctrl_->try_open();
+      ctrl_ = nullptr;
+      return res;
+    } else {
       return nullptr;
+    }
   }
 
 private:
@@ -290,7 +370,7 @@ public:
 
   using buffer_ptr = bounded_buffer_ptr<T>;
 
-  producer_resource(buffer_ptr buf) {
+  explicit producer_resource(buffer_ptr buf) {
     ctrl_.emplace(std::move(buf));
   }
 
@@ -303,15 +383,35 @@ public:
   /// Tries to open the resource for writing to the buffer. The first `open`
   /// wins on concurrent access.
   /// @returns a pointer to the buffer on success, `nullptr` otherwise.
-  buffer_ptr open() {
-    if (ctrl_)
-      return ctrl_->open();
-    else
+  buffer_ptr try_open() {
+    if (ctrl_) {
+      auto res = ctrl_->try_open();
+      ctrl_ = nullptr;
+      return res;
+    } else {
       return nullptr;
+    }
   }
 
 private:
   intrusive_ptr<resource_ctrl<T, true>> ctrl_;
 };
+
+/// Creates bounded buffer and returns two resources connected by that buffer.
+template <class T>
+std::pair<consumer_resource<T>, producer_resource<T>>
+make_bounded_buffer_resource(size_t buffer_size, size_t min_request_size) {
+  using buffer_type = bounded_buffer<T>;
+  auto buf = make_counted<buffer_type>(buffer_size, min_request_size);
+  return {async::consumer_resource<T>{buf}, async::producer_resource<T>{buf}};
+}
+
+/// Creates bounded buffer and returns two resources connected by that buffer.
+template <class T>
+std::pair<consumer_resource<T>, producer_resource<T>>
+make_bounded_buffer_resource() {
+  return make_bounded_buffer_resource<T>(defaults::flow::buffer_size,
+                                         defaults::flow::min_demand);
+}
 
 } // namespace caf::async

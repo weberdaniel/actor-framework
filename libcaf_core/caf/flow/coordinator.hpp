@@ -113,6 +113,7 @@ inline void intrusive_ptr_release(const coordinator* p) noexcept {
   p->deref_coordinator();
 }
 
+/// @relates coordinator
 using coordinator_ptr = intrusive_ptr<coordinator>;
 
 /// Creates a new @ref coordinator with a function to set up flow logic before

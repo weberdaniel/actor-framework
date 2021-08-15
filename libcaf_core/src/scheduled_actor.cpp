@@ -1262,6 +1262,7 @@ void scheduled_actor::dispatch_cancel(flow::observable_base* source,
 void scheduled_actor::watch(disposable obj) {
   CAF_ASSERT(obj.valid());
   watched_disposables_.emplace_back(std::move(obj));
+  CAF_LOG_DEBUG("now watching" << watched_disposables_.size() << "disposables");
 }
 
 void scheduled_actor::handle_flow_events() {
@@ -1286,7 +1287,10 @@ void scheduled_actor::handle_flow_events() {
 void scheduled_actor::drop_disposed_flows() {
   auto disposed = [](auto& hdl) { return hdl.disposed(); };
   auto& xs = watched_disposables_;
-  xs.erase(std::remove_if(xs.begin(), xs.end(), disposed), xs.end());
+  if (auto e = std::remove_if(xs.begin(), xs.end(), disposed); e != xs.end()) {
+    xs.erase(e, xs.end());
+    CAF_LOG_DEBUG("now watching" << xs.size() << "disposables");
+  }
 }
 
 } // namespace caf
