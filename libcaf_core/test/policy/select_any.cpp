@@ -6,7 +6,7 @@
 
 #include "caf/policy/select_any.hpp"
 
-#include "caf/test/dsl.hpp"
+#include "core-test.hpp"
 
 #include "caf/actor_system.hpp"
 #include "caf/event_based_actor.hpp"
@@ -42,10 +42,10 @@ struct fixture : test_coordinator_fixture<> {
 
 #define SUBTEST(message)                                                       \
   run();                                                                       \
-  CAF_MESSAGE("subtest: " message);                                            \
+  MESSAGE("subtest: " message);                                                \
   for (int subtest_dummy = 0; subtest_dummy < 1; ++subtest_dummy)
 
-CAF_TEST_FIXTURE_SCOPE(select_any_tests, fixture)
+BEGIN_FIXTURE_SCOPE(fixture)
 
 CAF_TEST(select_any picks the first arriving integer) {
   auto f = [](int x, int y) { return x + y; };
@@ -58,7 +58,7 @@ CAF_TEST(select_any picks the first arriving integer) {
       select_any<detail::type_list<int>> choose{{r1.id(), r2.id()}};
       run();
       choose.receive(
-        self.ptr(), [](int result) { CAF_CHECK_EQUAL(result, 3); },
+        self.ptr(), [](int result) { CHECK_EQ(result, 3); },
         make_error_handler());
     }
   }
@@ -76,8 +76,8 @@ CAF_TEST(select_any picks the first arriving integer) {
     expect((int, int), from(client).to(server2).with(2, 3));
     expect((int), from(server1).to(client).with(3));
     expect((int), from(server2).to(client).with(5));
-    CAF_MESSAGE("request.then picks the first arriving result");
-    CAF_CHECK_EQUAL(result, 3);
+    MESSAGE("request.then picks the first arriving result");
+    CHECK_EQ(result, 3);
   }
   SUBTEST("request.await") {
     int result = 0;
@@ -95,8 +95,8 @@ CAF_TEST(select_any picks the first arriving integer) {
     // expect((int), from(server1).to(client).with(3));
     // expect((int), from(server2).to(client).with(5));
     run();
-    CAF_MESSAGE("request.await froces responses into reverse request order");
-    CAF_CHECK_EQUAL(result, 5);
+    MESSAGE("request.await froces responses into reverse request order");
+    CHECK_EQ(result, 5);
   }
 }
 
@@ -114,7 +114,7 @@ CAF_TEST(select_any calls the error handler at most once) {
       self.ptr(),
       [](int) { CAF_FAIL("fan-in policy called the result handler"); },
       make_counting_error_handler(&errors));
-    CAF_CHECK_EQUAL(errors, 1u);
+    CHECK_EQ(errors, 1u);
   }
   SUBTEST("request.then") {
     size_t errors = 0;
@@ -132,7 +132,7 @@ CAF_TEST(select_any calls the error handler at most once) {
     expect((int, int), from(client).to(server2).with(2, 3));
     expect((error), from(server1).to(client).with(sec::invalid_argument));
     expect((error), from(server2).to(client).with(sec::invalid_argument));
-    CAF_CHECK_EQUAL(errors, 1u);
+    CHECK_EQ(errors, 1u);
   }
   SUBTEST("request.await") {
     size_t errors = 0;
@@ -152,8 +152,8 @@ CAF_TEST(select_any calls the error handler at most once) {
     // expect((int), from(server1).to(client).with(3));
     // expect((int), from(server2).to(client).with(5));
     run();
-    CAF_CHECK_EQUAL(errors, 1u);
+    CHECK_EQ(errors, 1u);
   }
 }
 
-CAF_TEST_FIXTURE_SCOPE_END()
+END_FIXTURE_SCOPE()

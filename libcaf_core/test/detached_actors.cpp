@@ -26,16 +26,16 @@ struct fixture {
 
 } // namespace
 
-CAF_TEST_FIXTURE_SCOPE(detached_actors, fixture)
+BEGIN_FIXTURE_SCOPE(fixture)
 
 CAF_TEST(shutdown) {
-  CAF_MESSAGE("does sys shut down after spawning a detached actor?");
+  MESSAGE("does sys shut down after spawning a detached actor?");
   sys.spawn<detached>([] {});
 }
 
 CAF_TEST(shutdown_with_delayed_send) {
-  CAF_MESSAGE("does sys shut down after spawning a detached actor that used "
-              "delayed_send?");
+  MESSAGE("does sys shut down after spawning a detached actor that used "
+          "delayed_send?");
   auto f = [](event_based_actor* self) -> behavior {
     self->delayed_send(self, std::chrono::nanoseconds(1), ok_atom_v);
     return {
@@ -46,8 +46,8 @@ CAF_TEST(shutdown_with_delayed_send) {
 }
 
 CAF_TEST(shutdown_with_unhandled_delayed_send) {
-  CAF_MESSAGE("does sys shut down after spawning a detached actor that used "
-              "delayed_send but didn't bother waiting for it?");
+  MESSAGE("does sys shut down after spawning a detached actor that used "
+          "delayed_send but didn't bother waiting for it?");
   auto f = [](event_based_actor* self) {
     self->delayed_send(self, std::chrono::nanoseconds(1), ok_atom_v);
   };
@@ -55,8 +55,8 @@ CAF_TEST(shutdown_with_unhandled_delayed_send) {
 }
 
 CAF_TEST(shutdown_with_after) {
-  CAF_MESSAGE("does sys shut down after spawning a detached actor that used "
-              "after()?");
+  MESSAGE("does sys shut down after spawning a detached actor that used "
+          "after()?");
   auto f = [](event_based_actor* self) -> behavior {
     return {
       after(std::chrono::nanoseconds(1)) >> [=] { self->quit(); },
@@ -66,8 +66,8 @@ CAF_TEST(shutdown_with_after) {
 }
 
 CAF_TEST(shutdown_delayed_send_loop) {
-  CAF_MESSAGE("does sys shut down after spawning a detached actor that used "
-              "a delayed send loop and was interrupted via exit message?");
+  MESSAGE("does sys shut down after spawning a detached actor that used "
+          "a delayed send loop and was interrupted via exit message?");
   auto f = [](event_based_actor* self) -> behavior {
     self->delayed_send(self, std::chrono::milliseconds(1), ok_atom_v);
     return {
@@ -81,4 +81,4 @@ CAF_TEST(shutdown_delayed_send_loop) {
     [&] { self->send_exit(a, exit_reason::user_shutdown); });
 }
 
-CAF_TEST_FIXTURE_SCOPE_END()
+END_FIXTURE_SCOPE()
