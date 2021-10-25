@@ -5,6 +5,7 @@
 #pragma once
 
 #include <type_traits>
+#include <variant>
 
 #include "caf/default_sum_type_access.hpp"
 #include "caf/delegated.hpp"
@@ -17,7 +18,6 @@
 #include "caf/none.hpp"
 #include "caf/skip.hpp"
 #include "caf/sum_type.hpp"
-#include "caf/variant.hpp"
 
 namespace caf::detail {
 
@@ -91,7 +91,7 @@ protected:
     // nop
   }
 
-  variant<delegated<Ts...>, message, error> content_;
+  std::variant<delegated<Ts...>, message, error> content_;
 };
 
 // -- result<Ts...> and its specializations ------------------------------------
@@ -235,7 +235,9 @@ auto make_result(Ts&&... xs) {
 // -- special type alias for a skippable result<message> -----------------------
 
 /// Similar to `result<message>`, but also allows to *skip* a message.
+CAF_PUSH_DEPRECATED_WARNING
 using skippable_result = variant<delegated<message>, message, error, skip_t>;
+CAF_POP_WARNINGS
 
 // -- sum type access to result<Ts...> -----------------------------------------
 

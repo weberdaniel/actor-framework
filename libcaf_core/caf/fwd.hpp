@@ -10,6 +10,11 @@
 
 #include "caf/detail/core_export.hpp"
 
+#define CAF_PUSH_DEPRECATED_WARNING                                            \
+  _Pragma("GCC diagnostic push")                                               \
+    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#define CAF_POP_WARNINGS _Pragma("GCC diagnostic pop")
+
 namespace caf {
 
 // clang-format off
@@ -64,7 +69,7 @@ template <class...> class typed_actor_view;
 template <class...> class typed_event_based_actor;
 template <class...> class typed_message_view;
 template <class...> class typed_response_promise;
-template <class...> class variant;
+template <class...> class [[deprecated ("Use std::variant instead")]] variant;
 
 template <class, class...> class outbound_stream_slot;
 
@@ -197,7 +202,9 @@ using ip_address = ipv6_address;
 using ip_endpoint = ipv6_endpoint;
 using ip_subnet = ipv6_subnet;
 using settings = dictionary<config_value>;
+CAF_PUSH_DEPRECATED_WARNING
 using skippable_result = variant<delegated<message>, message, error, skip_t>;
+CAF_POP_WARNINGS
 using stream_slot = uint16_t;
 using type_id_t = uint16_t;
 

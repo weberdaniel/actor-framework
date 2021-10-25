@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <variant>
 #include <vector>
 
 #include "caf/detail/comparable.hpp"
@@ -18,7 +19,6 @@
 #include "caf/ip_address.hpp"
 #include "caf/make_counted.hpp"
 #include "caf/string_view.hpp"
-#include "caf/variant.hpp"
 
 namespace caf {
 
@@ -35,7 +35,7 @@ public:
 
   /// Host subcomponent of the authority component. Either an IP address or
   /// an hostname as string.
-  using host_type = variant<std::string, ip_address>;
+  using host_type = std::variant<std::string, ip_address>;
 
   /// Bundles the authority component of the URI, i.e., userinfo, host, and
   /// port.

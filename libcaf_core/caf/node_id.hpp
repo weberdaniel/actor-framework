@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <variant>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
@@ -18,7 +19,6 @@
 #include "caf/none.hpp"
 #include "caf/ref_counted.hpp"
 #include "caf/uri.hpp"
-#include "caf/variant.hpp"
 
 namespace caf {
 
@@ -74,7 +74,7 @@ class CAF_CORE_EXPORT node_id_data : public ref_counted {
 public:
   // -- member types -----------------------------------------------------------
 
-  using variant_type = variant<uri, hashed_node_id>;
+  using variant_type = std::variant<uri, hashed_node_id>;
 
   // -- constructors, destructors, and assignment operators --------------------
 

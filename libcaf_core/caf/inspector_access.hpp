@@ -37,6 +37,8 @@
 #include "caf/sum_type_access.hpp"
 #include "caf/variant.hpp"
 
+CAF_PUSH_DEPRECATED_WARNING
+
 namespace caf::detail {
 
 // -- predicates ---------------------------------------------------------------
@@ -727,3 +729,5 @@ struct inspector_access<
 };
 
 } // namespace caf
+
+CAF_POP_WARNINGS

@@ -19,6 +19,8 @@
 #include "caf/sum_type.hpp"
 #include "caf/sum_type_access.hpp"
 
+CAF_PUSH_DEPRECATED_WARNING
+
 #define CAF_VARIANT_CASE(n)                                                    \
   case n:                                                                      \
     return f(std::forward<Us>(xs)...,                                          \
@@ -26,10 +28,8 @@
 
 #define CAF_VARIANT_ASSIGN_CASE(n)                                             \
   case n: {                                                                    \
-    using tmp_t = typename detail::tl_at<                                      \
-                    detail::type_list<Ts...>,                                  \
-                    (n < sizeof...(Ts) ? n : 0)                                \
-                  >::type;                                                     \
+    using tmp_t = typename detail::tl_at<detail::type_list<Ts...>,             \
+                                         (n < sizeof...(Ts) ? n : 0)>::type;   \
     x.x = tmp_t{};                                                             \
     return f(get<tmp_t>(x.x));                                                 \
   }
@@ -60,7 +60,8 @@ template <class T>
 struct variant_assign_helper {
   using result_type = void;
   T& lhs;
-  variant_assign_helper(T& lhs_ref) : lhs(lhs_ref) { }
+  variant_assign_helper(T& lhs_ref) : lhs(lhs_ref) {
+  }
   template <class U>
   void operator()(const U& rhs) const {
     lhs = rhs;
@@ -71,7 +72,8 @@ template <class T>
 struct variant_move_helper {
   using result_type = void;
   T& lhs;
-  variant_move_helper(T& lhs_ref) : lhs(lhs_ref) { }
+  variant_move_helper(T& lhs_ref) : lhs(lhs_ref) {
+  }
   template <class U>
   void operator()(U& rhs) const {
     lhs = std::move(rhs);
@@ -80,8 +82,8 @@ struct variant_move_helper {
 
 template <bool Valid, class F, class... Ts>
 struct variant_visit_result_impl {
-  using type =
-    decltype((std::declval<F&>())(std::declval<typename Ts::type0&>()...));
+  using type
+    = decltype((std::declval<F&>())(std::declval<typename Ts::type0&>()...));
 };
 
 template <class F, class... Ts>
@@ -89,8 +91,8 @@ struct variant_visit_result_impl<false, F, Ts...> {};
 
 template <class F, class... Ts>
 struct variant_visit_result
-    : variant_visit_result_impl<
-        detail::conjunction<is_variant<Ts>::value...>::value, F, Ts...> {};
+  : variant_visit_result_impl<
+      detail::conjunction<is_variant<Ts>::value...>::value, F, Ts...> {};
 
 template <class F, class... Ts>
 using variant_visit_result_t =
@@ -113,19 +115,16 @@ public:
   static constexpr int max_type_id = sizeof...(Ts) - 1;
 
   /// Stores whether all types are nothrow constructible.
-  static constexpr bool nothrow_move_construct =
-    detail::conjunction<
-      std::is_nothrow_move_constructible<Ts>::value...
-    >::value;
+  static constexpr bool nothrow_move_construct = detail::conjunction<
+    std::is_nothrow_move_constructible<Ts>::value...>::value;
 
   /// Stores whether all types are nothrow assignable *and* constructible. We
   /// need to check both, since assigning to a variant results in a
   /// move-construct unless the before and after types are the same.
-  static constexpr bool nothrow_move_assign =
-    nothrow_move_construct
-    && detail::conjunction<
-         std::is_nothrow_move_assignable<Ts>::value...
-       >::value;
+  static constexpr bool nothrow_move_assign
+    = nothrow_move_construct
+      && detail::conjunction<
+        std::is_nothrow_move_assignable<Ts>::value...>::value;
 
   // -- sanity checks ----------------------------------------------------------
 
@@ -146,14 +145,14 @@ public:
   }
 
   template <class U>
-  variant(U&& arg)
-  noexcept(std::is_rvalue_reference<U&&>::value && nothrow_move_assign)
-      : type_(variant_npos) {
+  variant(U&& arg) noexcept(
+    std::is_rvalue_reference<U&&>::value&& nothrow_move_assign)
+    : type_(variant_npos) {
     set(std::forward<U>(arg));
   }
 
   variant(variant&& other) noexcept(nothrow_move_construct)
-      : type_(variant_npos) {
+    : type_(variant_npos) {
     variant_move_helper<variant> helper{*this};
     other.template apply<void>(helper);
   }
@@ -246,37 +245,38 @@ public:
   template <class Result, class Self, class Visitor, class... Us>
   static Result apply_impl(Self& x, Visitor&& f, Us&&... xs) {
     switch (x.type_) {
-      default: CAF_RAISE_ERROR("invalid type found");
-      CAF_VARIANT_CASE(0);
-      CAF_VARIANT_CASE(1);
-      CAF_VARIANT_CASE(2);
-      CAF_VARIANT_CASE(3);
-      CAF_VARIANT_CASE(4);
-      CAF_VARIANT_CASE(5);
-      CAF_VARIANT_CASE(6);
-      CAF_VARIANT_CASE(7);
-      CAF_VARIANT_CASE(8);
-      CAF_VARIANT_CASE(9);
-      CAF_VARIANT_CASE(10);
-      CAF_VARIANT_CASE(11);
-      CAF_VARIANT_CASE(12);
-      CAF_VARIANT_CASE(13);
-      CAF_VARIANT_CASE(14);
-      CAF_VARIANT_CASE(15);
-      CAF_VARIANT_CASE(16);
-      CAF_VARIANT_CASE(17);
-      CAF_VARIANT_CASE(18);
-      CAF_VARIANT_CASE(19);
-      CAF_VARIANT_CASE(20);
-      CAF_VARIANT_CASE(21);
-      CAF_VARIANT_CASE(22);
-      CAF_VARIANT_CASE(23);
-      CAF_VARIANT_CASE(24);
-      CAF_VARIANT_CASE(25);
-      CAF_VARIANT_CASE(26);
-      CAF_VARIANT_CASE(27);
-      CAF_VARIANT_CASE(28);
-      CAF_VARIANT_CASE(29);
+      default:
+        CAF_RAISE_ERROR("invalid type found");
+        CAF_VARIANT_CASE(0);
+        CAF_VARIANT_CASE(1);
+        CAF_VARIANT_CASE(2);
+        CAF_VARIANT_CASE(3);
+        CAF_VARIANT_CASE(4);
+        CAF_VARIANT_CASE(5);
+        CAF_VARIANT_CASE(6);
+        CAF_VARIANT_CASE(7);
+        CAF_VARIANT_CASE(8);
+        CAF_VARIANT_CASE(9);
+        CAF_VARIANT_CASE(10);
+        CAF_VARIANT_CASE(11);
+        CAF_VARIANT_CASE(12);
+        CAF_VARIANT_CASE(13);
+        CAF_VARIANT_CASE(14);
+        CAF_VARIANT_CASE(15);
+        CAF_VARIANT_CASE(16);
+        CAF_VARIANT_CASE(17);
+        CAF_VARIANT_CASE(18);
+        CAF_VARIANT_CASE(19);
+        CAF_VARIANT_CASE(20);
+        CAF_VARIANT_CASE(21);
+        CAF_VARIANT_CASE(22);
+        CAF_VARIANT_CASE(23);
+        CAF_VARIANT_CASE(24);
+        CAF_VARIANT_CASE(25);
+        CAF_VARIANT_CASE(26);
+        CAF_VARIANT_CASE(27);
+        CAF_VARIANT_CASE(28);
+        CAF_VARIANT_CASE(29);
     }
   }
 
@@ -284,7 +284,8 @@ public:
 
 private:
   void destroy_data() {
-    if (type_ == variant_npos) return; // nothing to do
+    if (type_ == variant_npos)
+      return; // nothing to do
     detail::variant_data_destructor f;
     apply<void>(f);
   }
@@ -293,20 +294,17 @@ private:
   void set(U&& arg) {
     using namespace detail;
     using type = typename std::decay<U>::type;
-    static constexpr int type_id =
-      detail::tl_index_where<
-        types,
-        detail::tbind<is_same_ish, type>::template type
-      >::value;
+    static constexpr int type_id = detail::tl_index_where<
+      types, detail::tbind<is_same_ish, type>::template type>::value;
     static_assert(type_id >= 0, "invalid type for variant");
     std::integral_constant<int, type_id> token;
     if (type_ != type_id) {
       destroy_data();
       type_ = type_id;
       auto& ref = data_.get(token);
-      new (std::addressof(ref)) type (std::forward<U>(arg));
+      new (std::addressof(ref)) type(std::forward<U>(arg));
     } else {
-       data_.get(token) = std::forward<U>(arg);
+      data_.get(token) = std::forward<U>(arg);
     }
   }
 
@@ -346,7 +344,7 @@ private:
 /// @relates SumType
 template <class... Ts>
 struct sum_type_access<variant<Ts...>>
-    : default_sum_type_access<variant<Ts...>> {
+  : default_sum_type_access<variant<Ts...>> {
   // nop
 };
 
@@ -417,3 +415,5 @@ bool operator>=(const variant<Ts...>& x, const variant<Ts...>& y) {
 }
 
 } // namespace caf
+
+CAF_POP_WARNINGS

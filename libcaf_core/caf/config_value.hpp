@@ -90,7 +90,7 @@ public:
   using types = detail::type_list<none_t, integer, boolean, real, timespan, uri,
                                   string, list, dictionary>;
 
-  using variant_type = detail::tl_apply_t<types, variant>;
+  using variant_type = detail::tl_apply_t<types, std::variant>;
 
   // -- constructors, destructors, and assignment operators --------------------
 

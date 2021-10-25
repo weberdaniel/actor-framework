@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "caf/actor_addr.hpp"
@@ -16,7 +17,6 @@
 #include "caf/stream_priority.hpp"
 #include "caf/stream_slot.hpp"
 #include "caf/tag/boxing_type.hpp"
-#include "caf/variant.hpp"
 
 namespace caf {
 
@@ -66,7 +66,7 @@ struct CAF_CORE_EXPORT downstream_msg : tag::boxing_type {
   using alternatives = detail::type_list<batch, close, forced_close>;
 
   /// Stores one of `alternatives`.
-  using content_type = variant<batch, close, forced_close>;
+  using content_type = std::variant<batch, close, forced_close>;
 
   // -- constructors, destructors, and assignment operators --------------------
 
