@@ -225,7 +225,7 @@ struct IUnknown;
     }                                                                          \
     static_cast<void>(0)
 #else // defined(CAF_LINUX) || defined(CAF_MACOS)
-#  include <execinfo.h>
+#  include <libunwind.h>
 #  define CAF_ASSERT(stmt)                                                     \
     if (static_cast<bool>(stmt) == false) {                                    \
       printf("%s:%u: requirement failed '%s'\n", __FILE__, __LINE__, #stmt);   \
