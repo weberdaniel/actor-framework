@@ -225,6 +225,7 @@ struct IUnknown;
     }                                                                          \
     static_cast<void>(0)
 #else // defined(CAF_LINUX) || defined(CAF_MACOS)
+#  define UNW_LOCAL_ONLY
 #  include <libunwind.h>
 #  define CAF_ASSERT(stmt)                                                     \
     if (static_cast<bool>(stmt) == false) {                                    \
