@@ -4,7 +4,7 @@ file(GLOB_RECURSE CAF_CORE_HEADERS "caf/*.hpp")
 
 # -- dependencies --------------------------------------------------------------
 
-if(NOT Target unwind::unwind)
+if(NOT TARGET unwind::unwind)
   find_package(Unwind REQUIRED)
 endif()
 
