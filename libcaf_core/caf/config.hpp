@@ -229,9 +229,18 @@ struct IUnknown;
 #  define CAF_ASSERT(stmt)                                                     \
     if (static_cast<bool>(stmt) == false) {                                    \
       printf("%s:%u: requirement failed '%s'\n", __FILE__, __LINE__, #stmt);   \
-      void* array[20];                                                         \
-      auto caf_bt_size = ::backtrace(array, 20);                               \
-      ::backtrace_symbols_fd(array, caf_bt_size, 2);                           \
+      unw_cursor_t    cursor;                                                  \
+      unw_context_t   context;                                                 \
+      unw_getcontext(&context);                                                \
+      unw_init_local(&cursor, &context);                                       \
+      while (unw_step(&cursor) > 0) {                                          \
+        unw_word_t  offset, pc;                                                \
+        char        fname[64];                                                 \
+        unw_get_reg(&cursor, UNW_REG_IP, &pc);                                 \
+        fname[0] = '\0';                                                       \
+        (void) unw_get_proc_name(&cursor, fname, sizeof(fname), &offset);      \
+        printf ("%p : (%s+0x%x) [%p]\n", pc, fname, offset, pc);               \
+      }                                                                        \
       ::abort();                                                               \
     }                                                                          \
     static_cast<void>(0)
