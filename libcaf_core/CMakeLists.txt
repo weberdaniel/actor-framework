@@ -53,9 +53,9 @@ caf_add_component(
   DEPENDENCIES
     PUBLIC
       Threads::Threads
+      unwind::unwind
       ${LIBCAF_CORE_OPTIONAL_DEPENDENCIES}
     PRIVATE
-      unwind::unwind
       CAF::internal
   ENUM_TYPES
     exit_reason
