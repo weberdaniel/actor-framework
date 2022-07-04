@@ -4,6 +4,10 @@ file(GLOB_RECURSE CAF_CORE_HEADERS "caf/*.hpp")
 
 # -- dependencies --------------------------------------------------------------
 
+if(NOT Target unwind::unwind)
+  find_package(Unwind REQUIRED)
+endif()
+
 if(NOT TARGET Threads::Threads)
   find_package(Threads REQUIRED)
 endif()
@@ -51,6 +55,7 @@ caf_add_component(
       Threads::Threads
       ${LIBCAF_CORE_OPTIONAL_DEPENDENCIES}
     PRIVATE
+      unwind::unwind
       CAF::internal
   ENUM_TYPES
     exit_reason
