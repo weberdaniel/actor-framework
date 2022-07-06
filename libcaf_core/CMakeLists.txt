@@ -6,10 +6,12 @@ file(GLOB_RECURSE CAF_CORE_HEADERS "caf/*.hpp")
 
 if(NOT TARGET unwind::unwind)
   find_package(Unwind REQUIRED)
+  set_target_properties(unwind::unwind PROPERTIES IMPORTED_GLOBAL TRUE)
 endif()
 
 if(NOT TARGET Threads::Threads)
   find_package(Threads REQUIRED)
+  set_target_properties(Threads::Threads PROPERTIES IMPORTED_GLOBAL TRUE)
 endif()
 
 set(LIBCAF_CORE_OPTIONAL_DEPENDENCIES "")
