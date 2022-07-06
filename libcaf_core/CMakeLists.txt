@@ -55,7 +55,6 @@ caf_add_component(
   DEPENDENCIES
     PUBLIC
       Threads::Threads
-      unwind::unwind
       ${LIBCAF_CORE_OPTIONAL_DEPENDENCIES}
     PRIVATE
       CAF::internal
@@ -359,3 +358,5 @@ caf_add_component(
 if(CAF_ENABLE_TESTING AND CAF_ENABLE_EXCEPTIONS)
   caf_add_test_suites(caf-core-test custom_exception_handler)
 endif()
+
+target_link_libraries(libcaf_core PUBLIC unwind::unwind)
