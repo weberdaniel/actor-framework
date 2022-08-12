@@ -13,7 +13,6 @@
 #include "caf/detail/config_consumer.hpp"
 #include "caf/detail/parser/read_config.hpp"
 #include "caf/none.hpp"
-#include "caf/optional.hpp"
 
 using namespace std::string_literals;
 
@@ -47,7 +46,7 @@ struct fixture {
   }
 };
 
-config_value unpack(const settings& x, string_view key) {
+config_value unpack(const settings& x, std::string_view key) {
   if (auto i = x.find(key); i != x.end())
     return i->second;
   else
@@ -55,8 +54,8 @@ config_value unpack(const settings& x, string_view key) {
 }
 
 template <class... Ts>
-config_value
-unpack(const settings& x, string_view key, const char* next_key, Ts... keys) {
+config_value unpack(const settings& x, std::string_view key,
+                    const char* next_key, Ts... keys) {
   if (auto i = x.find(key); i == x.end())
     return {};
   else if (auto ptr = get_if<settings>(std::addressof(i->second)))
@@ -163,12 +162,36 @@ CAF_TEST(read_config accepts the to_string output of settings) {
   settings y;
   config_option_set dummy;
   detail::config_consumer consumer{dummy, y};
-  string_view str_view = str;
+  std::string_view str_view = str;
   string_parser_state res{str_view.begin(), str_view.end()};
   detail::parser::read_config(res, consumer);
   CHECK(res.i == res.e);
   CHECK_EQ(res.code, pec::success);
   CHECK_EQ(x, y);
+}
+
+SCENARIO("put_missing normalizes 'global' suffixes") {
+  GIVEN("empty settings") {
+    settings uut;
+    WHEN("calling put_missing with and without 'global' suffix") {
+      THEN("put_missing drops the 'global' suffix") {
+        put_missing(uut, "global.foo", "bar"s);
+        CHECK_EQ(get_as<std::string>(uut, "foo"), "bar"s);
+        CHECK_EQ(get_as<std::string>(uut, "global.foo"), "bar"s);
+      }
+    }
+  }
+  GIVEN("settings with a value for 'foo'") {
+    settings uut;
+    uut["foo"] = "bar"s;
+    WHEN("calling put_missing 'global.foo'") {
+      THEN("the function call results in a no-op") {
+        put_missing(uut, "global.foo", "baz"s);
+        CHECK_EQ(get_as<std::string>(uut, "foo"), "bar"s);
+        CHECK_EQ(get_as<std::string>(uut, "global.foo"), "bar"s);
+      }
+    }
+  }
 }
 
 END_FIXTURE_SCOPE()
