@@ -6,8 +6,8 @@
 
 include (FindPackageHandleStandardArgs)
 
-find_path (Unwind_INCLUDE_DIR NAMES unwind.h libunwind.h DOC "unwind include directory")
-find_library (Unwind_LIBRARY NAMES unwind DOC "unwind library")
+find_path (Unwind_INCLUDE_DIR NAMES unwind.h libunwind.h DOC "unwind include directory" PATHS /usr/lib/gcc/x86_64-alpine-linux-musl/11.2.1/include)
+find_library (Unwind_LIBRARY NAMES unwind libunwind.so.8 DOC "unwind library" PATHS /usr/lib /usr)
 
 mark_as_advanced (Unwind_INCLUDE_DIR Unwind_LIBRARY)
 
