@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -33,7 +33,7 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  defer(coordinator* ctx, Factory fn) : super(ctx), fn_(std::move(fn)) {
+  defer(coordinator* parent, Factory fn) : super(parent), fn_(std::move(fn)) {
     // nop
   }
 

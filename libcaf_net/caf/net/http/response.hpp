@@ -1,14 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/net/fwd.hpp"
 
 #include "caf/async/promise.hpp"
 #include "caf/byte_buffer.hpp"
 #include "caf/default_enum_inspect.hpp"
 #include "caf/detail/net_export.hpp"
-#include "caf/net/http/fwd.hpp"
 #include "caf/span.hpp"
 #include "caf/unordered_flat_map.hpp"
 

@@ -1,13 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <array>
-#include <cstdint>
-#include <functional>
-#include <string>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
@@ -18,6 +13,11 @@
 #include "caf/none.hpp"
 #include "caf/ref_counted.hpp"
 #include "caf/uri.hpp"
+
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <string>
 
 namespace caf {
 
@@ -159,9 +159,7 @@ public:
   template <class Inspector>
   friend bool inspect(Inspector& f, node_id& x) {
     auto is_present = [&x] { return x.data_ != nullptr; };
-    auto get = [&]() -> const auto& {
-      return x.data_->content;
-    };
+    auto get = [&]() -> const auto& { return x.data_->content; };
     auto reset = [&x] { x.data_.reset(); };
     auto set = [&x](node_id_data::variant_type&& val) {
       if (x.data_ && x.data_->unique())

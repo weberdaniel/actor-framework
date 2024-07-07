@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -22,39 +22,18 @@
 //   - denotes the amount of logging, ranging from error messages only (0)
 //     to complete traces (4)
 
-/// Denotes version of CAF in the format {MAJOR}{MINOR}{PATCH},
-/// whereas each number is a two-digit decimal number without
-/// leading zeros (e.g. 900 is version 0.9.0).
-#define CAF_VERSION 1806
-
-/// Defined to the major version number of CAF.
-#define CAF_MAJOR_VERSION (CAF_VERSION / 10000)
-
-/// Defined to the minor version number of CAF.
-#define CAF_MINOR_VERSION ((CAF_VERSION / 100) % 100)
-
-/// Defined to the patch version number of CAF.
-#define CAF_PATCH_VERSION (CAF_VERSION % 100)
-
 // This compiler-specific block defines:
-// - CAF_DEPRECATED to annotate deprecated functions
 // - CAF_PUSH_WARNINGS/CAF_POP_WARNINGS to surround "noisy" header includes
-// - CAF_ANNOTATE_FALLTHROUGH to suppress warnings in switch/case statements
 // - CAF_COMPILER_VERSION to retrieve the compiler version in CAF_VERSION format
 // - One of the following:
 //   + CAF_CLANG
 //   + CAF_GCC
 //   + CAF_MSVC
 
-// sets CAF_DEPRECATED, CAF_ANNOTATE_FALLTHROUGH,
-// CAF_PUSH_WARNINGS and CAF_POP_WARNINGS
+// sets CAF_PUSH_WARNINGS and CAF_POP_WARNINGS
 // clang-format off
 #if defined(__clang__)
 #  define CAF_CLANG
-#  define CAF_LIKELY(x) __builtin_expect((x), 1)
-#  define CAF_UNLIKELY(x) __builtin_expect((x), 0)
-#  define CAF_DEPRECATED __attribute__((deprecated))
-#  define CAF_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
 #  define CAF_PUSH_WARNINGS                                                    \
     _Pragma("clang diagnostic push")                                           \
     _Pragma("clang diagnostic ignored \"-Wall\"")                              \
@@ -86,23 +65,15 @@
 #  define CAF_PUSH_UNUSED_LABEL_WARNING                                        \
     _Pragma("clang diagnostic push")                                           \
     _Pragma("clang diagnostic ignored \"-Wunused-label\"")
-#  define CAF_PUSH_NON_VIRTUAL_DTOR_WARNING                                    \
-    _Pragma("clang diagnostic push")                                           \
-    _Pragma("clang diagnostic ignored \"-Wnon-virtual-dtor\"")
 #  define CAF_PUSH_DEPRECATED_WARNING                                          \
     _Pragma("clang diagnostic push")                                           \
     _Pragma("clang diagnostic ignored \"-Wdeprecated-declarations\"")
 #  define CAF_POP_WARNINGS                                                     \
     _Pragma("clang diagnostic pop")
-#  define CAF_ANNOTATE_FALLTHROUGH [[clang::fallthrough]]
 #  define CAF_COMPILER_VERSION                                                 \
     (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
 #elif defined(__GNUC__)
 #  define CAF_GCC
-#  define CAF_LIKELY(x) __builtin_expect((x), 1)
-#  define CAF_UNLIKELY(x) __builtin_expect((x), 0)
-#  define CAF_DEPRECATED __attribute__((deprecated))
-#  define CAF_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
 #  define CAF_PUSH_WARNINGS                                                    \
     _Pragma("GCC diagnostic push")                                             \
     _Pragma("GCC diagnostic ignored \"-Wshadow\"")                             \
@@ -115,29 +86,17 @@
 #  define CAF_PUSH_UNUSED_LABEL_WARNING                                        \
     _Pragma("GCC diagnostic push")                                             \
     _Pragma("GCC diagnostic ignored \"-Wunused-label\"")
-#  define CAF_PUSH_NON_VIRTUAL_DTOR_WARNING                                    \
-    _Pragma("GCC diagnostic push")                                             \
-    _Pragma("GCC diagnostic ignored \"-Wnon-virtual-dtor\"")
 #  define CAF_PUSH_DEPRECATED_WARNING                                          \
     _Pragma("GCC diagnostic push")                                             \
     _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
 #  define CAF_POP_WARNINGS                                                     \
     _Pragma("GCC diagnostic pop")
-#  if __GNUC__ >= 7
-#    define CAF_ANNOTATE_FALLTHROUGH __attribute__((fallthrough))
-#  else
-#    define CAF_ANNOTATE_FALLTHROUGH static_cast<void>(0)
-#  endif
 #  define CAF_COMPILER_VERSION                                                 \
      (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
     // disable thread_local on GCC/macOS due to heap-use-after-free bug:
     // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=67135
 #elif defined(_MSC_VER)
 #  define CAF_MSVC
-#  define CAF_LIKELY(x) x
-#  define CAF_UNLIKELY(x) x
-#  define CAF_DEPRECATED
-#  define CAF_DEPRECATED_MSG(msg)
 #  define CAF_PUSH_WARNINGS                                                    \
     __pragma(warning(push))
 #  define CAF_PUSH_UNUSED_LABEL_WARNING                                        \
@@ -145,10 +104,7 @@
     __pragma(warning(disable: 4102))
 #  define CAF_PUSH_DEPRECATED_WARNING                                          \
     __pragma(warning(push))
-#  define CAF_PUSH_NON_VIRTUAL_DTOR_WARNING                                    \
-    __pragma(warning(push))
 #  define CAF_POP_WARNINGS __pragma(warning(pop))
-#  define CAF_ANNOTATE_FALLTHROUGH static_cast<void>(0)
 #  define CAF_COMPILER_VERSION _MSC_FULL_VER
 #  pragma warning( disable : 4624 )
 #  pragma warning( disable : 4800 )
@@ -157,14 +113,8 @@
 #    define NOMINMAX
 #  endif // NOMINMAX
 #else
-#  define CAF_LIKELY(x) x
-#  define CAF_UNLIKELY(x) x
-#  define CAF_DEPRECATED
-#  define CAF_PUSH_WARNINGS
-#  define CAF_PUSH_NON_VIRTUAL_DTOR_WARNING
 #  define CAF_PUSH_DEPRECATED_WARNING
 #  define CAF_POP_WARNINGS
-#  define CAF_ANNOTATE_FALLTHROUGH static_cast<void>(0)
 #endif
 // clang-format on
 
@@ -212,70 +162,3 @@
   || defined(CAF_CYGWIN) || defined(CAF_NET_BSD)
 #  define CAF_POSIX
 #endif
-
-#if defined(CAF_WINDOWS) && defined(CAF_CLANG)
-// Fix for issue with static_cast<> in objbase.h.
-// See: https://github.com/philsquared/Catch/issues/690.
-struct IUnknown;
-#endif
-
-#include <cstdio>
-#include <cstdlib>
-
-// Optionally enable CAF_ASSERT
-#ifndef CAF_ENABLE_RUNTIME_CHECKS
-#  define CAF_ASSERT(unused) static_cast<void>(0)
-#elif defined(CAF_WINDOWS) || defined(CAF_BSD)
-#  define CAF_ASSERT(stmt)                                                     \
-    if (static_cast<bool>(stmt) == false) {                                    \
-      printf("%s:%u: requirement failed '%s'\n", __FILE__, __LINE__, #stmt);   \
-      ::abort();                                                               \
-    }                                                                          \
-    static_cast<void>(0)
-#else // defined(CAF_LINUX) || defined(CAF_MACOS)
-#  define CAF_ASSERT(stmt)                                                     \
-    if (static_cast<bool>(stmt) == false) {                                    \
-      printf("%s:%u: requirement failed '%s'\n", __FILE__, __LINE__, #stmt);   \
-      unw_cursor_t    cursor;                                                  \
-      unw_context_t   context;                                                 \
-      unw_getcontext(&context);                                                \
-      unw_init_local(&cursor, &context);                                       \
-      while (unw_step(&cursor) > 0) {                                          \
-        unw_word_t  offset, pc;                                                \
-        char        fname[64];                                                 \
-        unw_get_reg(&cursor, UNW_REG_IP, &pc);                                 \
-        fname[0] = '\0';                                                       \
-        (void) unw_get_proc_name(&cursor, fname, sizeof(fname), &offset);      \
-        printf ("%p : (%s+0x%x) [%p]\n", pc, fname, offset, pc);               \
-      }                                                                        \
-      ::abort();                                                               \
-    }                                                                          \
-    static_cast<void>(0)
-#endif
-
-// CAF_DEBUG_STMT(stmt): evaluates to stmt when compiling with runtime checks
-//                       and to an empty expression otherwise.
-#ifndef CAF_ENABLE_RUNTIME_CHECKS
-#  define CAF_DEBUG_STMT(stmt) static_cast<void>(0)
-#else
-#  define CAF_DEBUG_STMT(stmt) stmt
-#endif
-
-// Convenience macros.
-#define CAF_IGNORE_UNUSED(x) static_cast<void>(x)
-
-/// Prints `error` to `stderr` and aborts program execution.
-#define CAF_CRITICAL(error)                                                    \
-  do {                                                                         \
-    fprintf(stderr, "[FATAL] critical error (%s:%d): %s\n", __FILE__,          \
-            __LINE__, error);                                                  \
-    ::abort();                                                                 \
-  } while (false)
-
-/// Prints `error` to `stderr` and aborts program execution.
-#define CAF_CRITICAL_FMT(fmt_str, ...)                                         \
-  do {                                                                         \
-    fprintf(stderr, "[FATAL] critical error (%s:%d): " fmt_str "\n", __FILE__, \
-            __LINE__, __VA_ARGS__);                                            \
-    ::abort();                                                                 \
-  } while (false)

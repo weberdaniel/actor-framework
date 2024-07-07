@@ -1,19 +1,20 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/net/socket.hpp"
+#include "caf/net/socket_id.hpp"
+
+#include "caf/config.hpp"
+#include "caf/detail/net_export.hpp"
+#include "caf/fwd.hpp"
 
 #include <cstdint>
 #include <string>
 #include <system_error>
 #include <type_traits>
-
-#include "caf/config.hpp"
-#include "caf/detail/net_export.hpp"
-#include "caf/fwd.hpp"
-#include "caf/net/socket.hpp"
-#include "caf/net/socket_id.hpp"
 
 namespace caf::net {
 
@@ -56,17 +57,5 @@ expected<uint16_t> CAF_NET_EXPORT remote_port(network_socket x);
 /// Returns the remote host address of `x`.
 /// @relates network_socket
 expected<std::string> CAF_NET_EXPORT remote_addr(network_socket x);
-
-/// Closes the read channel for a socket.
-/// @relates network_socket
-void CAF_NET_EXPORT shutdown_read(network_socket x);
-
-/// Closes the write channel for a socket.
-/// @relates network_socket
-void CAF_NET_EXPORT shutdown_write(network_socket x);
-
-/// Closes the both read and write channel for a socket.
-/// @relates network_socket
-void CAF_NET_EXPORT shutdown(network_socket x);
 
 } // namespace caf::net

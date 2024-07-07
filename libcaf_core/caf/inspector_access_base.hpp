@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <string>
-#include <string_view>
-
 #include "caf/detail/as_mutable_ref.hpp"
 #include "caf/sec.hpp"
+
+#include <string>
+#include <string_view>
 
 namespace caf {
 

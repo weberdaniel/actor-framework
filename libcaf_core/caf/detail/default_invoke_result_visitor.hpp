@@ -1,12 +1,12 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include "caf/local_actor.hpp"
-
 #include "caf/detail/invoke_result_visitor.hpp"
+#include "caf/local_actor.hpp"
+#include "caf/log/core.hpp"
 
 namespace caf::detail {
 
@@ -26,12 +26,12 @@ public:
   using super::operator();
 
   void operator()(error& x) override {
-    CAF_LOG_TRACE(CAF_ARG(x));
+    auto lg = log::core::trace("x = {}", x);
     self_->respond(x);
   }
 
   void operator()(message& x) override {
-    CAF_LOG_TRACE(CAF_ARG(x));
+    auto lg = log::core::trace("x = {}", x);
     self_->respond(x);
   }
 

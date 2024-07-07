@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <cstddef>
-#include <map>
-
 #include "caf/config.hpp"
 #include "caf/detail/core_export.hpp"
+
+#include <cstddef>
+#include <map>
 
 #ifdef CAF_CLANG
 #  pragma clang diagnostic push
@@ -55,20 +55,20 @@ public:
       using other = allocator<U>;
     };
 
-    explicit allocator(monotonic_buffer_resource* mbr) : mbr_(mbr) {
+    constexpr explicit allocator(monotonic_buffer_resource* mbr) : mbr_(mbr) {
       // nop
     }
 
-    allocator() : mbr_(nullptr) {
+    constexpr allocator() : mbr_(nullptr) {
       // nop
     }
 
-    allocator(const allocator&) = default;
+    constexpr allocator(const allocator&) = default;
 
-    allocator& operator=(const allocator&) = default;
+    constexpr allocator& operator=(const allocator&) = default;
 
     template <class U>
-    allocator(const allocator<U>& other) : mbr_(other.resource()) {
+    constexpr allocator(const allocator<U>& other) : mbr_(other.resource()) {
       // nop
     }
 

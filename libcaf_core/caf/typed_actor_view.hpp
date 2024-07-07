@@ -1,28 +1,48 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
 #include "caf/actor_traits.hpp"
 #include "caf/config.hpp"
+#include "caf/detail/assert.hpp"
+#include "caf/detail/to_statically_typed_trait.hpp"
+#include "caf/event_based_mail.hpp"
+#include "caf/extend.hpp"
 #include "caf/mixin/requester.hpp"
-#include "caf/mixin/sender.hpp"
+#include "caf/none.hpp"
 #include "caf/scheduled_actor.hpp"
+#include "caf/stream.hpp"
 #include "caf/timespan.hpp"
 #include "caf/typed_actor_view_base.hpp"
+#include "caf/typed_stream.hpp"
 
 namespace caf {
 
+/// Utility function to force the type of `self` to depend on `T` and to raise a
+/// compiler error if the user did not include 'caf/scheduled_actor/flow.hpp'.
+/// The function itself does nothing and simply returns `self`.
+template <class T>
+auto typed_actor_view_flow_access(caf::scheduled_actor* self) {
+  using Self = flow::assert_scheduled_actor_hdr_t<T, caf::scheduled_actor*>;
+  return static_cast<Self>(self);
+}
+
+template <class...>
+class typed_actor_view;
+
 /// Decorates a pointer to a @ref scheduled_actor with a statically typed actor
 /// interface.
-template <class... Sigs>
-class typed_actor_view
-  : public extend<typed_actor_view_base, typed_actor_view<Sigs...>>::
-      template with<mixin::sender, mixin::requester> {
+template <class TraitOrSignature>
+class typed_actor_view<TraitOrSignature>
+  : public extend<typed_actor_view_base, typed_actor_view<TraitOrSignature>>::
+      template with<mixin::requester> {
 public:
+  using trait = detail::to_statically_typed_trait_t<TraitOrSignature>;
+
   /// Stores the template parameter pack.
-  using signatures = detail::type_list<Sigs...>;
+  using signatures = typename trait::signatures;
 
   using pointer = scheduled_actor*;
 
@@ -34,13 +54,13 @@ public:
 
   /// @copydoc local_actor::spawn
   template <class T, spawn_options Os = no_spawn_options, class... Ts>
-  typename infer_handle_from_class<T>::type spawn(Ts&&... xs) {
+  infer_handle_from_class_t<T> spawn(Ts&&... xs) {
     return self_->spawn<T, Os>(std::forward<Ts>(xs)...);
   }
 
   /// @copydoc local_actor::spawn
   template <spawn_options Os = no_spawn_options, class F, class... Ts>
-  typename infer_handle_from_fun<F>::type spawn(F fun, Ts&&... xs) {
+  infer_handle_from_fun_t<F> spawn(F fun, Ts&&... xs) {
     return self_->spawn<Os>(std::move(fun), std::forward<Ts>(xs)...);
   }
 
@@ -162,13 +182,13 @@ public:
 
   // -- linking and monitoring -------------------------------------------------
 
-  /// @copydoc monitorable_actor::link_to
+  /// @copydoc abstract_actor::link_to
   template <class ActorHandle>
   void link_to(const ActorHandle& x) {
     self_->link_to(x);
   }
 
-  /// @copydoc monitorable_actor::unlink_from
+  /// @copydoc abstract_actor::unlink_from
   template <class ActorHandle>
   void unlink_from(const ActorHandle& x) {
     self_->unlink_from(x);
@@ -196,12 +216,63 @@ public:
     self_->demonitor(whom);
   }
 
+  // -- messaging --------------------------------------------------------------
+
+  /// Starts a new message.
+  template <class... Args>
+  auto mail(Args&&... args) {
+    return event_based_mail(trait{}, self_, std::forward<Args>(args)...);
+  }
+
   // -- sending asynchronous messages ------------------------------------------
 
   /// @copydoc local_actor::send_exit
   template <class ActorHandle>
   void send_exit(const ActorHandle& whom, error reason) {
     self_->send_exit(whom, std::move(reason));
+  }
+
+  // -- scheduling actions -----------------------------------------------------
+
+  /// @copydoc scheduled_actor::run_scheduled
+  template <class Clock, class Duration, class F>
+  disposable
+  run_scheduled(std::chrono::time_point<Clock, Duration> when, F what) {
+    return self_->run_scheduled(when, std::move(what));
+  }
+
+  /// @copydoc scheduled_actor::run_scheduled_weak
+  template <class Clock, class Duration, class F>
+  disposable
+  run_scheduled_weak(std::chrono::time_point<Clock, Duration> when, F what) {
+    return self_->run_scheduled_weak(when, std::move(what));
+  }
+
+  /// @copydoc scheduled_actor::run_delayed
+  template <class Rep, class Period, class F>
+  disposable run_delayed(std::chrono::duration<Rep, Period> delay, F what) {
+    return self_->run_delayed(delay, std::move(what));
+  }
+
+  /// @copydoc scheduled_actor::run_delayed_weak
+  template <class Rep, class Period, class F>
+  disposable
+  run_delayed_weak(std::chrono::duration<Rep, Period> delay, F what) {
+    return self_->run_delayed_weak(delay, std::move(what));
+  }
+
+  // -- printing ---------------------------------------------------------------
+
+  /// Adds a new line to stdout.
+  template <class... Args>
+  void println(std::string_view fmt, Args&&... args) {
+    system().println(fmt, std::forward<Args>(args)...);
+  }
+
+  /// Adds a new line to stdout.
+  template <class... Args>
+  void println(term color, std::string_view fmt, Args&&... args) {
+    system().println(color, fmt, std::forward<Args>(args)...);
   }
 
   // -- miscellaneous actor operations -----------------------------------------
@@ -211,8 +282,7 @@ public:
   }
 
   template <class... Ts>
-  typename detail::make_response_promise_helper<Ts...>::type
-  make_response_promise() {
+  detail::make_response_promise_helper_t<Ts...> make_response_promise() {
     return self_->make_response_promise<Ts...>();
   }
 
@@ -228,18 +298,16 @@ public:
     return self_->make_response_promise();
   }
 
-  template <class... Ts>
-  void eq_impl(Ts&&... xs) {
-    self_->eq_impl(std::forward<Ts>(xs)...);
+  void add_awaited_response_handler(message_id response_id, behavior bhvr,
+                                    disposable pending_timeout = {}) {
+    return self_->add_awaited_response_handler(response_id, std::move(bhvr),
+                                               std::move(pending_timeout));
   }
 
-  void add_awaited_response_handler(message_id response_id, behavior bhvr) {
-    return self_->add_awaited_response_handler(response_id, std::move(bhvr));
-  }
-
-  void add_multiplexed_response_handler(message_id response_id, behavior bhvr) {
-    return self_->add_multiplexed_response_handler(response_id,
-                                                   std::move(bhvr));
+  void add_multiplexed_response_handler(message_id response_id, behavior bhvr,
+                                        disposable pending_timeout = {}) {
+    return self_->add_multiplexed_response_handler(response_id, std::move(bhvr),
+                                                   std::move(pending_timeout));
   }
 
   template <class Handle, class... Ts>
@@ -263,12 +331,61 @@ public:
     self_ = ptr;
   }
 
+  /// @private
+  bool enqueue(mailbox_element_ptr what, scheduler* sched) {
+    return self_->enqueue(std::move(what), sched);
+  }
+
   operator scheduled_actor*() const noexcept {
     return self_;
   }
 
+  // -- flow API ---------------------------------------------------------------
+
+  /// @copydoc flow::coordinator::make_observable
+  template <class T = none_t>
+  auto make_observable() {
+    // Note: the template parameter T serves no purpose other than forcing the
+    //       compiler to delay evaluation of this function body by having
+    //       *something* to pass to `typed_actor_view_flow_access`.
+    auto self = typed_actor_view_flow_access<T>(self_);
+    return self->make_observable();
+  }
+
+  /// @copydoc scheduled_actor::observe
+  template <class T>
+  auto
+  observe(typed_stream<T> what, size_t buf_capacity, size_t demand_threshold) {
+    auto self = typed_actor_view_flow_access<T>(self_);
+    return self->observe(std::move(what), buf_capacity, demand_threshold);
+  }
+
+  /// @copydoc scheduled_actor::observe_as
+  template <class T>
+  auto observe_as(stream what, size_t buf_capacity, size_t demand_threshold) {
+    auto self = typed_actor_view_flow_access<T>(self_);
+    return self->template observe_as<T>(std::move(what), buf_capacity,
+                                        demand_threshold);
+  }
+
+  /// @copydoc scheduled_actor::deregister_stream
+  void deregister_stream(uint64_t stream_id) {
+    self_->deregister_stream(stream_id);
+  }
+
 private:
   scheduled_actor* self_;
+};
+
+/// Decorates a pointer to a @ref scheduled_actor with a statically typed actor
+/// interface.
+/// @note This is a specialization for backwards compatibility with pre v1.0
+///       releases. Please use the trait based implementation.
+template <class T1, class T2, class... Ts>
+class typed_actor_view<T1, T2, Ts...>
+  : public typed_actor_view<statically_typed<T1, T2, Ts...>> {
+  using super = typed_actor_view<statically_typed<T1, T2, Ts...>>;
+  using super::super;
 };
 
 template <class... Sigs>

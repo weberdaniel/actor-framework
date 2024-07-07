@@ -1,18 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/allowed_unsafe_message_type.hpp"
+#include "caf/type_id.hpp"
 
 #include <map>
 #include <string>
 #include <vector>
 
-#include "caf/allowed_unsafe_message_type.hpp"
-#include "caf/type_id.hpp"
-
 // Unfortunately required, because we cannot add a forward declaration for the
-// enum protol::network that we need for assigning a type ID to
+// enum protocol::network that we need for assigning a type ID to
 // io::network::address_listing.
 #include "caf/io/network/protocol.hpp"
 
@@ -20,7 +20,8 @@ namespace caf {
 
 // -- templates from the parent namespace necessary for defining aliases -------
 
-template <class> class intrusive_ptr;
+template <class>
+class intrusive_ptr;
 
 namespace io {
 

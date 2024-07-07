@@ -11,135 +11,156 @@ config = [
     // List of enabled checks for email notifications.
     checks: [
         'build',
-        'style',
         'tests',
-        // 'coverage', TODO: fix kcov setup
     ],
-    // Default CMake flags by build type.
+    // Default CMake flags for the builds.
     buildFlags: [
         'CAF_ENABLE_ACTOR_PROFILER:BOOL=ON',
         'CAF_ENABLE_EXAMPLES:BOOL=ON',
+        'CAF_ENABLE_ROBOT_TESTS:BOOL=ON',
         'CAF_ENABLE_RUNTIME_CHECKS:BOOL=ON',
     ],
-    extraDebugFlags: [
-        'CAF_LOG_LEVEL:STRING=TRACE',
-    ],
     // Our build matrix. Keys are the operating system labels and values are build configurations.
+    // Note on no-maybe-uninitialized: some GCC versions have weird bugs that causes false positives.
     buildMatrix: [
-        // Various Linux builds.
-        ['centos-7', [
+        // Release builds.
+        ['almalinux-8', [ // EOL: June 2029
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized',
+            ],
         ]],
-        ['centos-8', [
+        ['almalinux-9', [ // EOL: May 2032
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized',
+            ],
         ]],
-        ['debian-9', [
+        ['alpinelinux-3.18', [ // EOL: May 2025
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized -Wno-array-bounds -Wno-free-nonheap-object',
+            ],
         ]],
-        ['debian-10', [
+        ['debian-11', [ // EOL June 2026
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized -Wno-deprecated-declarations',
+            ],
         ]],
-        ['ubuntu-16.04', [
+        ['debian-12', [ // EOL June 2028
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized -Wno-array-bounds -Wno-free-nonheap-object',
+            ],
         ]],
-        ['ubuntu-18.04', [
+        ['fedora-39', [ // EOL November 2024
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized -Wno-array-bounds',
+            ],
         ]],
-        ['ubuntu-20.04', [
+        ['fedora-40', [ // EOL May 2025
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized -Wno-uninitialized -Wno-array-bounds -Wno-free-nonheap-object',
+                'CAF_CXX_VERSION:STRING=23',
+            ],
         ]],
-        ['fedora-33', [
+        ['ubuntu-20.04', [ // April 2025
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror',
+            ],
         ]],
-        ['fedora-34', [
+        ['ubuntu-22.04', [ // April 2027
             numCores: 4,
             tags: ['docker'],
             builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized',
+            ],
         ]],
-        // One extra debug build with exceptions disabled.
-        ['centos-7', [
+        ['ubuntu-24.04', [ // April 2029
+            numCores: 4,
+            tags: ['docker'],
+            builds: ['release'],
+            extraBuildFlags: [
+                'CMAKE_CXX_FLAGS:STRING=-Werror -Wno-maybe-uninitialized -Wno-array-bounds',
+            ],
+        ]],
+        // Debug build with exceptions disabled.
+        ['fedora-40:no-exceptions', [
             numCores: 4,
             tags: ['docker'],
             builds: ['debug'],
             extraBuildFlags: [
+                'CAF_LOG_LEVEL:STRING=TRACE',
                 'CAF_ENABLE_EXCEPTIONS:BOOL=OFF',
-                'CMAKE_CXX_FLAGS:STRING=-fno-exceptions',
+                'CMAKE_CXX_FLAGS:STRING=-Werror -fno-exceptions',
             ],
         ]],
-        // One extra debug build for leak checking.
-        ['fedora-34', [
+        // Debug build for LeakSanitizer.
+        ['fedora-40:leak-checks', [
             numCores: 4,
             tags: ['docker', 'LeakSanitizer'],
             builds: ['debug'],
             extraBuildFlags: [
+                'BUILD_SHARED_LIBS:BOOL=OFF',
+                'CAF_LOG_LEVEL:STRING=TRACE',
                 'CAF_SANITIZERS:STRING=address',
             ],
             extraBuildEnv: [
                 'ASAN_OPTIONS=detect_leaks=1',
             ],
         ]],
-        // One extra debug build with static libs, UBSan and hardening flags.
-        ['fedora-34', [
+        // Debug build with static libs, UBSan and hardening flags.
+        ['fedora-40:ub-checks', [
             numCores: 4,
             tags: ['docker', 'UBSanitizer'],
             builds: ['debug'],
             extraBuildFlags: [
                 'BUILD_SHARED_LIBS:BOOL=OFF',
+                'CAF_LOG_LEVEL:STRING=TRACE',
                 'CAF_SANITIZERS:STRING=address,undefined',
+                'CMAKE_CXX_FLAGS:STRING=-Werror',
             ],
             extraBuildEnv: [
                 'CXXFLAGS=-fno-sanitize-recover=undefined -D_GLIBCXX_DEBUG',
                 'LDFLAGS=-fno-sanitize-recover=undefined',
             ],
         ]],
-        // Other UNIX systems. On macOS, we also build *all* examples.
-        ['macOS', [
+        // Run the Autobahn test suite for WebSocket conformance.
+        ['autobahn-testsuite', [
             numCores: 4,
-            builds: ['debug', 'release'],
-            extraBuildFlags: [
-                'CAF_ENABLE_CURL_EXAMPLES:BOOL=ON',
-                'CAF_ENABLE_PROTOBUF_EXAMPLES:BOOL=ON',
-                'CAF_ENABLE_QT6_EXAMPLES:BOOL=ON',
-                'OPENSSL_ROOT_DIR:PATH=/usr/local/opt/openssl',
-                'Qt6_DIR:PATH=/usr/local/opt/qt/lib/cmake/Qt6',
-            ],
-            extraDebugBuildFlags: [
-                'CAF_SANITIZERS:STRING=address',
-            ],
-        ]],
-        ['FreeBSD', [
-            numCores: 4,
-            builds: ['debug', 'release'],
-            extraDebugBuildFlags: [
-                'CAF_SANITIZERS:STRING=address',
-                // Deadlocks on FreeBSD in CRYPTO_THREAD_run_once under ASAN.
-                'CAF_EXCLUDE_TESTS:STRING=net.ssl.transport'
-            ],
-        ]],
-        // Non-UNIX systems.
-        ['Windows', [
-            numCores: 4,
-            // TODO: debug build currently broken
-            //builds: ['debug', 'release'],
+            tags: ['docker'],
             builds: ['release'],
+            extraScripts: [
+                "./sources/.ci/autobahn-testsuite/run.sh build",
+            ],
             extraBuildFlags: [
-                'OPENSSL_ROOT_DIR:PATH=C:\\Program Files\\OpenSSL-Win64',
+                'CAF_ENABLE_EXAMPLES:BOOL=OFF',
+                'CAF_ENABLE_IO_MODULE:BOOL=OFF',
+                'CAF_ENABLE_IO_TOOLS:BOOL=OFF',
+                'CAF_ENABLE_ROBOT_TESTS:BOOL=OFF',
+                'CAF_ENABLE_RUNTIME_CHECKS:BOOL=ON',
+                'CAF_ENABLE_SHARED_LIBS:BOOL=OFF',
             ],
         ]],
     ],
@@ -161,12 +182,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 getSources(config)
-            }
-        }
-        stage('Lint') {
-            agent { label 'clang-format' }
-            steps {
-                runClangFormat(config)
             }
         }
         stage('Build') {

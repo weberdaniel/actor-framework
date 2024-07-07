@@ -1,12 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <cstdint>
-#include <memory>
-#include <utility>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
@@ -16,6 +12,10 @@
 #include "caf/message.hpp"
 #include "caf/none.hpp"
 #include "caf/type_id.hpp"
+
+#include <cstdint>
+#include <memory>
+#include <utility>
 
 namespace caf {
 
@@ -89,6 +89,13 @@ public:
     // nop
   }
 
+  template <class Enum, class = std::enable_if_t<is_error_code_enum_v<Enum>>>
+  error(Enum code, std::string msg)
+    : error(static_cast<uint8_t>(code), type_id_v<Enum>,
+            make_message(std::move(msg))) {
+    // nop
+  }
+
   template <class Enum>
   error(error_code<Enum> code) : error(to_integer(code), type_id_v<Enum>) {
     // nop
@@ -126,6 +133,12 @@ public:
     return data_->context;
   }
 
+  /// Returns a human-readable string representation of this error if available.
+  /// Otherwise, returns an empty string.
+  /// @note The string representation is extracted from the embedded context if
+  ///       it contains a single string element.
+  std::string_view what() const noexcept;
+
   /// Returns `*this != none`.
   explicit operator bool() const noexcept {
     return data_ != nullptr;
@@ -144,6 +157,30 @@ public:
   int compare(const error&) const noexcept;
 
   int compare(uint8_t code, type_id_t category) const noexcept;
+
+  /// Returns a copy of `this` if `!empty()` or else returns a new error from
+  /// given arguments.
+  template <class Enum, class... Ts>
+  error or_else(Enum code, Ts&&... args) const& {
+    if (!empty())
+      return *this;
+    if constexpr (sizeof...(Ts) > 0)
+      return error{code, std::forward<Ts>(args)...};
+    else
+      return error{code};
+  }
+
+  /// Returns a copy of `this` if `!empty()` or else returns a new error from
+  /// given arguments.
+  template <class Enum, class... Ts>
+  error or_else(Enum code, Ts&&... args) && {
+    if (!empty())
+      return std::move(*this);
+    if constexpr (sizeof...(Ts) > 0)
+      return error{code, std::forward<Ts>(args)...};
+    else
+      return error{code};
+  }
 
   // -- modifiers --------------------------------------------------------------
 

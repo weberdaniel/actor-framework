@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <functional>
-#include <type_traits>
-
 #include "caf/detail/core_export.hpp"
 #include "caf/timespan.hpp"
+
+#include <functional>
+#include <type_traits>
 
 namespace caf {
 
@@ -16,8 +16,8 @@ namespace detail {
 
 class behavior_impl;
 
-CAF_CORE_EXPORT behavior_impl*
-new_default_behavior(timespan d, std::function<void()> fun);
+CAF_CORE_EXPORT behavior_impl* new_default_behavior(timespan d,
+                                                    std::function<void()> fun);
 
 } // namespace detail
 
@@ -54,6 +54,9 @@ struct is_timeout_definition : std::false_type {};
 
 template <class T>
 struct is_timeout_definition<timeout_definition<T>> : std::true_type {};
+
+template <class T>
+constexpr bool is_timeout_definition_v = is_timeout_definition<T>::value;
 
 using generic_timeout_definition = timeout_definition<std::function<void()>>;
 

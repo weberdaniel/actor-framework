@@ -105,40 +105,34 @@ echo "\
                        | |___ / ___ \|  _|      Framework
                         \____/_/   \_|_|
 
-This script expects to run at the root directory of a Git clone of CAF.
-The current repository must be master. There must be no untracked file
-and the working tree status must be equal to the current HEAD commit.
-Further, the script expects a release_note.md file in the current directory
-with the developer blog checked out one level above, i.e.:
+This script expects to run at the root directory of a Git clone of CAF. The
+current branch must be main. There must be no untracked file and the working
+tree status must be equal to the current HEAD commit. Further, the script
+expects a checkout of the actor-framework.github.io repository at ../website:
 
 \$HOME
 ├── .github-oauth-token
 
 .
-├── libcaf_io
-├── blog_release_note.md [optional]
-├── github_release_note.md
+├── libcaf_core
 
 ..
-├── blog
+├── website
 │   ├── _posts
 
 "
 
-if [ $(git rev-parse --abbrev-ref HEAD) != "master" ]; then
-  ask_permission "not in master branch, continue on branch [y] or abort [n]?"
+if [ $(git rev-parse --abbrev-ref HEAD) != "main" ]; then
+  ask_permission "not in main branch, continue on branch [y] or abort [n]?"
 fi
 
 # assumed files
 token_path="$HOME/.github-oauth-token"
 github_msg="github_release_note.md"
-config_hpp_path="libcaf_core/caf/config.hpp"
-
-# assumed directories
-blog_posts_path="../blog/_posts"
+main_cmake_path="CMakeLists.txt"
 
 # check whether all expected files and directories exist
-assert_exists "$token_path" "$config_hpp_path"
+assert_exists "$token_path" "$main_cmake_path"
 
 # check for a clean state
 assert_exists_not .make-release-steps.bash
@@ -176,17 +170,17 @@ echo "\
 set -e
 " > .make-release-steps.bash
 
-echo ">>> patching config.hpp"
-sed "s/#define CAF_VERSION [0-9]*/#define CAF_VERSION ${version_str}/g" < "$config_hpp_path" > .tmp_conf_hpp
+echo ">>> patching $main_cmake_path"
+sed "s/CAF VERSION [0-9.]*/CAF VERSION $1/g" < "$main_cmake_path" > .tmp_cmake_lists
 
 # check whether the version actually changed
-if cmp --silent .tmp_conf_hpp "$config_hpp_path" ; then
-  rm .tmp_conf_hpp
-  ask_permission "version already matches in config.hpp, continue pushing tag [y] or abort [n]?"
+if cmp --silent .tmp_cmake_lists "$main_cmake_path" ; then
+  rm .tmp_cmake_lists
+  ask_permission "version already matches in $main_cmake_path, continue pushing tag [y] or abort [n]?"
 else
-  mv .tmp_conf_hpp "$config_hpp_path"
+  mv .tmp_cmake_lists "$main_cmake_path"
   echo ; echo
-  echo ">>> please review the diff reported by Git for patching config.hpp:"
+  echo ">>> please review the diff reported by Git for patching $main_cmake_path:"
   git diff
   echo ; echo
   ask_permission "type [n] to abort or [y] to proceed"
@@ -200,25 +194,12 @@ token=$(cat "$token_path")
 tag_descr=$(awk 1 ORS='\\r\\n' "$github_msg")
 github_json=$(printf '{"tag_name": "%s","name": "%s","body": "%s","draft": false,"prerelease": false}' "$tag_version" "$tag_version" "$tag_descr")
 
-# for returning to this directory after pushing blog
-anchor="$PWD"
-
 echo "\
 git push
 git tag $tag_version
 git push origin --tags
 curl --data '$github_json' -H 'Authorization: token $token' https://api.github.com/repos/actor-framework/actor-framework/releases
 " >> .make-release-steps.bash
-
-if [ -z "$rc_version" ]; then
-  if which brew &>/dev/null ; then
-    file_url="https://github.com/actor-framework/actor-framework/archive/$tag_version.tar.gz"
-    echo "\
-export HOMEBREW_GITHUB_API_TOKEN=\$(cat "$token_path")
-brew bump-formula-pr --message=\"Update CAF to version $tag_version\" --url=\"$file_url\" caf
-" >> .make-release-steps.bash
-  fi
-fi
 
 echo ; echo
 echo ">>> please review the final steps for releasing $tag_version "
@@ -235,3 +216,34 @@ rm "$github_msg" .make-release-steps.bash
 
 echo ; echo
 echo ">>> done"
+
+echo ; echo
+echo ">>> build and publish Doxygen on the homepage (needs a checkout under ../website)?"
+ask_permission "type [y] to proceed or [n] to abort"
+
+if [ ! -d ../website/static/doxygen ] ; then
+  raise_error "../website/static/doxygen does not exist"
+fi
+
+if [ -d ../website/static/doxygen/$tag_version ] ; then
+  raise_error "../website/static/doxygen/$tag_version/ already exist"
+fi
+
+echo "\
+doxygen &> doxygen-log.txt
+mkdir ../website/static/doxygen/$tag_version
+cp -R html/* ../website/static/doxygen/$tag_version/
+cd ../website
+git add static/doxygen/$tag_version
+git commit -m 'Add Doxygen for $tag_version'
+git push
+" >> .push-doxygen-steps.bash
+
+echo ; echo
+echo ">>> please review the final steps for pushing Doxygen for $tag_version"
+cat .push-doxygen-steps.bash
+echo ; echo
+ask_permission "type [y] to execute the steps above or [n] to abort"
+
+chmod +x .push-doxygen-steps.bash
+./.push-doxygen-steps.bash

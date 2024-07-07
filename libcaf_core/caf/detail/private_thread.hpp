@@ -1,20 +1,21 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/detail/core_export.hpp"
+#include "caf/detail/private_thread_pool.hpp"
+#include "caf/fwd.hpp"
 
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
-#include "caf/detail/private_thread_pool.hpp"
-#include "caf/fwd.hpp"
-
 namespace caf::detail {
 
-class private_thread : public private_thread_pool::node {
+class CAF_CORE_EXPORT private_thread : public private_thread_pool::node {
 public:
   void resume(resumable* ptr);
 

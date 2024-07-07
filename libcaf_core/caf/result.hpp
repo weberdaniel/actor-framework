@@ -1,11 +1,10 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
 #include "caf/delegated.hpp"
-#include "caf/detail/type_list.hpp"
 #include "caf/detail/type_traits.hpp"
 #include "caf/error.hpp"
 #include "caf/expected.hpp"
@@ -13,6 +12,7 @@
 #include "caf/message.hpp"
 #include "caf/none.hpp"
 #include "caf/skip.hpp"
+#include "caf/type_list.hpp"
 #include "caf/variant_wrapper.hpp"
 
 #include <type_traits>
@@ -35,7 +35,7 @@ class result_base {
 public:
   static_assert(sizeof...(Ts) > 0);
 
-  using types = detail::type_list<delegated<Ts...>, message, error>;
+  using types = type_list<delegated<Ts...>, message, error>;
 
   result_base() = default;
 
@@ -188,10 +188,9 @@ public:
 
   using super::super;
 
-  template <
-    class U,
-    class = std::enable_if_t<
-      std::is_constructible_v<T, U> && !std::is_constructible_v<super, U>>>
+  template <class U,
+            class = std::enable_if_t<std::is_constructible_v<T, U>
+                                     && !std::is_constructible_v<super, U>>>
   result(U&& x)
     : super(detail::result_base_message_init{}, T{std::forward<U>(x)}) {
     // nop

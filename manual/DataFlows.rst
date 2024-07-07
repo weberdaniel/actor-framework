@@ -182,6 +182,19 @@ into complex data stream operations.
 The operators presented here are available on the template classes
 ``observable``, ``generation`` and ``transformation``.
 
+Buffer
+++++++
+
+Emits items in buffers of configurable size. Each buffer is emitted as a
+copy-on-write vector (``caf::cow_vector``). The operator will emit "partial"
+buffers if the source observable completes before the buffer is full.
+
+The operator also takes an optional second argument that specifies the maximum
+time period between two items before the buffer is emitted regardless of its
+size.
+
+.. image:: op/buffer.svg
+
 Concat
 ++++++
 
@@ -206,6 +219,14 @@ been emitted in the past.
 
 .. image:: op/distinct.svg
 
+Element At
+++++++++++
+
+The ``element_at`` operator re-emits the item at a given index while ignoring
+all other items.
+
+.. image:: op/element_at.svg
+
 Filter
 ++++++
 
@@ -213,6 +234,13 @@ The ``filter`` operator re-emits items from its input observable that pass a
 predicate test.
 
 .. image:: op/filter.svg
+
+First
++++++
+
+The ``first`` operator re-emits only the first item of the input observable.
+
+.. image:: op/first.svg
 
 Flat Map
 ++++++++
@@ -229,6 +257,22 @@ The ``head_and_tail`` operator splits an ``observable`` into its first item and
 an ``observable`` for the remainder.
 
 .. image:: op/head_and_tail.svg
+
+Ignore Elements
++++++++++++++++
+
+The ``ignore_elements`` operator ignores all items of the input observable and
+only emits the completion (or error) signal.
+
+.. image:: op/ignore_elements.svg
+
+Last
+++++
+
+The ``last`` operator re-emits only the last item of the input observable.
+
+.. image:: op/last.svg
+
 
 Map
 +++
@@ -255,6 +299,50 @@ asynchronous buffer. The target actor must not run at the point of calling this
 operator. In the image below, alice (red) and bob (blue) are two actors.
 
 .. image:: op/observe_on.svg
+
+On Backpressure Buffer
+++++++++++++++++++++++
+
+This operator controls the behavior of a flow when the producer emits items
+faster than the consumer can process them. By default, the backpressure
+mechanism in CAF will slow down the producer, eventually bringing it to a halt.
+When connecting multiple consumers, a single slow consumer can block the entire
+flow. Especially when connecting external consumers, e.g., via the network,
+applications may want to alter this behavior.
+
+The ``on_backpressure_buffer`` operator allows users to have consumers buffer up
+to a fixed number of items before responding to the overload condition.
+The operator allows to select one of three strategies:
+
+- ``drop_oldest``: Discards the oldest item in the buffer when it is full.
+- ``drop_newest``: Discards the newest item in the buffer when it is full.
+- ``fail``: Aborts the flow with an error message when the buffer is full.
+
+The default strategy (when calling ``on_backpressure_buffer`` with a single
+argument) is ``fail``.
+
+On Error Complete
++++++++++++++++++
+
+The ``on_error_complete`` operator catches an error event and completes the
+observable instead of propagating the error to the observer. In other words, the
+operator will call ``on_complete`` on the observer instead of ``on_error`` in
+case of an error, effectively ignoring the error.
+
+On Error Return
++++++++++++++++
+
+Takes an error handler function object with the signature
+``expected<T>(const error&)`` and replaces an error event with the result of the
+handler. If the handler returns a value, the observable will emit this value
+instead of the error. If the handler returns an error, the observable will emit
+this error instead of the original error.
+
+On Error Return Item
+++++++++++++++++++++
+
+Takes a value and replaces an error event with this value. If the observable
+encounters an error, it will emit this value instead of the error.
 
 Prefix and Tail
 +++++++++++++++
@@ -283,6 +371,22 @@ more subscription), the ``ref_count`` operators unsubscribes from its source.
 
 .. image:: op/ref_count.svg
 
+Sample
+++++++
+
+The ``sample`` operator emits the most recent item emitted by the source
+observable within periodic time intervals.
+
+.. image:: op/sample.svg
+
+Skip Last
++++++++++
+
+The ``skip_last`` operator re-emits all but the last ``n`` items from its input
+observable.
+
+.. image:: op/skip_last.svg
+
 Skip
 ++++
 
@@ -291,6 +395,14 @@ observable.
 
 .. image:: op/skip.svg
 
+Start With
+++++++++++
+
+The ``start_with`` operator emits a given value (or observable) before the first
+item of the input observable.
+
+.. image:: op/start_with.svg
+
 Sum
 +++
 
@@ -298,6 +410,14 @@ The ``sum`` operator accumulates all items and emits the result after the input
 ``observable`` has completed.
 
 .. image:: op/sum.svg
+
+Take Last
++++++++++
+
+The ``take_last`` operator re-emits the last ``n`` items from its input
+observable.
+
+.. image:: op/take_last.svg
 
 Take
 ++++

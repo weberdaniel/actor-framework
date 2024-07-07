@@ -27,27 +27,24 @@ conf_dir = pathlib.Path(__file__).parent.absolute()
 root_dir = conf_dir.parent.absolute()
 
 # Fetch the CAF version.
-with open(os.path.join(root_dir, "libcaf_core/caf/config.hpp")) as f:
-    match = re.search('^#define CAF_VERSION ([0-9]+)$', f.read(), re.MULTILINE)
+with open(os.path.join(root_dir, "CMakeLists.txt")) as f:
+    match = re.search('^project.CAF VERSION ([0-9.]+) ', f.read(), re.MULTILINE)
     if match is None:
-        raise RuntimeError("unable to locate CAF_VERSION string in config.hpp")
-    raw_version = int(match.group(1))
-    major = int(raw_version / 10000)
-    minor = int(raw_version / 100) % 100
-    patch = raw_version % 100
-    version = '{}.{}.{}'.format(major, minor, patch)
+        raise RuntimeError("unable to locate CAF version string in CMakeLists.txt")
+    version = match.group(1)
 
 # We're building a stable release if the last commit message is
 # "Change version to <version>".
 repo = git.Repo(root_dir)
-is_stable = False
 
 # We're building a stable release if this version has a release date.
-with open(os.path.join(root_dir, "CHANGELOG.md")) as f:
-    match = re.search('^## \[' + version + '\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$',
-                      f.read(), re.MULTILINE)
-    if match != None:
-        is_stable = True
+def has_release_date():
+    with open(os.path.join(root_dir, "CHANGELOG.md")) as f:
+        for line in f:
+            if line.startswith("## [" + version + "]"):
+                return True
+    return False
+is_stable = has_release_date()
 
 # Generate the full version, including alpha/beta/rc tags. For stable releases,
 # this is always the same as the CAF version.
@@ -60,7 +57,8 @@ else:
 
 # -- Enable Sphinx to find the literal includes -------------------------------
 
-for dirname in ["examples", "libcaf_core", "libcaf_io", "libcaf_openssl"]:
+for dirname in ["examples", "libcaf_core", "libcaf_io", "libcaf_openssl",
+                "libcaf_net"]:
     dest_dir = os.path.join(conf_dir, dirname)
     if not os.path.isdir(dest_dir):
         os.symlink(os.path.join(root_dir, dirname), dest_dir)
@@ -96,8 +94,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'CAF'
-copyright = u'2020, Dominik Charousset'
-author = u'Dominik Charousset'
+copyright = u'2024, Interance GmbH & Co. KG'
+author = u'Interance GmbH & Co. KG'
 
 # Make variables available to .rst.
 rst_epilog = """
@@ -110,7 +108,7 @@ rst_epilog = """
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -306,7 +304,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'CAF.tex', u'CAF Documentation',
-     u'Dominik Charousset', 'manual'),
+     author, 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

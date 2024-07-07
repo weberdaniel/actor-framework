@@ -1,21 +1,26 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/net/fwd.hpp"
+#include "caf/net/network_socket.hpp"
 
 #include "caf/detail/net_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/ip_endpoint.hpp"
-#include "caf/net/fwd.hpp"
-#include "caf/net/network_socket.hpp"
 #include "caf/uri.hpp"
 
 namespace caf::net {
 
 /// Represents a TCP acceptor in listening mode.
 struct CAF_NET_EXPORT tcp_accept_socket : network_socket {
+  /// The parent type.
   using super = network_socket;
+
+  /// The default transport for exchanging raw bytes over accepted sockets.
+  using transport_type = octet_stream::transport;
 
   using super::super;
 };

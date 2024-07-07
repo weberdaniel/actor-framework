@@ -4,6 +4,7 @@ WorkingDir="$PWD"
 UsageString="
      $0 build CMAKE_INIT_FILE SOURCE_DIR BUILD_DIR
   OR $0 test BUILD_DIR
+  OR $0 test BUILD_DIR EXCLUDES
   OR $0 assert WHAT
 "
 
@@ -12,14 +13,29 @@ usage() {
   exit 1
 }
 
+isRelative() {
+  case $1 in
+    /*) echo "no" ;;
+    *) echo "yes" ;;
+  esac
+}
+
+makeAbsolute() {
+  if [ `isRelative $1` = "yes" ]; then
+    echo "$WorkingDir/$1"
+  else
+    echo "$1"
+  fi
+}
+
 set -e
 
 if [ $# = 4 ]; then
   if [ "$1" = 'build' ] && [ -f "$2" ] && [ -d "$3" ]; then
     Mode='build'
-    InitFile="$2"
-    SourceDir="$3"
-    BuildDir="$4"
+    InitFile=`makeAbsolute $2`
+    SourceDir=`makeAbsolute $3`
+    BuildDir=`makeAbsolute $4`
     mkdir -p "$BuildDir"
   else
     usage
@@ -27,10 +43,19 @@ if [ $# = 4 ]; then
 elif [ $# = 2 ]; then
   if [ "$1" = 'test' ] && [ -d "$2" ]; then
     Mode='test'
-    BuildDir="$2"
+    BuildDir=`makeAbsolute $2`
+    Excludes=""
   elif [ "$1" = 'assert' ]; then
     Mode='assert'
     What="$2"
+  else
+    usage
+  fi
+elif [ $# = 3 ]; then
+  if [ "$1" = 'test' ] && [ -d "$2" ]; then
+    Mode='test'
+    BuildDir=`makeAbsolute $2`
+    Excludes="$3"
   else
     usage
   fi
@@ -52,6 +77,13 @@ else
   exit 1
 fi
 
+# Pick up Cirrus environment variables.
+if [ -z "$CAF_NUM_CORES" ]; then
+  if [ ! -z "$CIRRUS_CPU" ]; then
+    CAF_NUM_CORES=$CIRRUS_CPU
+  fi
+fi
+
 runBuild() {
   cat "$InitFile"
   cd "$BuildDir"
@@ -65,9 +97,11 @@ runBuild() {
 }
 
 runTest() {
-  cd "$BuildDir"
-  $CTestCommand --output-on-failure
-  cd "$WorkingDir"
+  if [ -z "$Excludes" ]; then
+    $CTestCommand --test-dir "$BuildDir" --output-on-failure
+  else
+    $CTestCommand --test-dir "$BuildDir" --output-on-failure -E "$Excludes"
+  fi
 }
 
 runLeakSanitizerCheck() {

@@ -1,11 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <functional>
-#include <type_traits>
 
 #include "caf/catch_all.hpp"
 
@@ -17,8 +14,8 @@ struct others_t {
   }
 
   template <class F>
-  catch_all<F> operator>>(F fun) const {
-    return {fun};
+  [[deprecated]] auto operator>>(F fun) const {
+    return catch_all<F>{fun};
   }
 };
 

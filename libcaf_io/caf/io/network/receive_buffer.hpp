@@ -1,16 +1,17 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
+#include "caf/allowed_unsafe_message_type.hpp"
+#include "caf/detail/io_export.hpp"
+
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
-
-#include "caf/allowed_unsafe_message_type.hpp"
-#include "caf/detail/io_export.hpp"
 
 namespace caf::io::network {
 

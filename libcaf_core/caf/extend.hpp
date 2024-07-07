@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -17,7 +17,7 @@ struct extend_helper<D, B> {
 };
 
 template <class D, class B, template <class, class> class M,
-      template <class, class> class... Ms>
+          template <class, class> class... Ms>
 struct extend_helper<D, B, M, Ms...> : extend_helper<D, M<B, D>, Ms...> {
   // no content
 };
@@ -40,4 +40,3 @@ struct extend {
 };
 
 } // namespace caf
-

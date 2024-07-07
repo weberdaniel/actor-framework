@@ -12,17 +12,18 @@ Contents
 
    Introduction
    Overview
+   MessagePassing
    TypeInspection
+   Hashing
    MessageHandlers
    Actors
-   MessagePassing
    Scheduler
    Registry
    ReferenceCounting
    Error
    ConfiguringActorApplications
-   GroupCommunication
-   ManagingGroupsOfWorkers
+   CopyOnWriteTypes
+   TypedMessageView
    DataFlows
    Testing
    Metrics
@@ -37,9 +38,19 @@ Contents
 
 .. toctree::
    :maxdepth: 2
+   :caption: Networking Library
+
+   net/Overview
+   net/SSL
+   net/ActorShell
+   net/HTTP
+   net/LengthPrefixFraming
+   net/Prometheus
+   net/WebSocket
+
+.. toctree::
+   :maxdepth: 2
    :caption: Appendix
 
    FAQ
-   Utility
    CommonPitfalls
-   UsingAout

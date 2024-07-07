@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -21,9 +21,9 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  interval(coordinator* ctx, timespan initial_delay, timespan period);
+  interval(coordinator* parent, timespan initial_delay, timespan period);
 
-  interval(coordinator* ctx, timespan initial_delay, timespan period,
+  interval(coordinator* parent, timespan initial_delay, timespan period,
            int64_t max_val);
 
   // -- implementation of observable_impl<T> -----------------------------------

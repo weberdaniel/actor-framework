@@ -1,15 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/detail/core_export.hpp"
+#include "caf/detail/padded_size.hpp"
 
 #include <cstddef>
 #include <memory>
 #include <new>
-
-#include "caf/detail/core_export.hpp"
-#include "caf/detail/padded_size.hpp"
 
 namespace caf::detail {
 

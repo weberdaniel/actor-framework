@@ -1,56 +1,55 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/net/fwd.hpp"
+#include "caf/net/http/request_header.hpp"
+#include "caf/net/http/response.hpp"
 
 #include "caf/async/execution_context.hpp"
 #include "caf/async/promise.hpp"
 #include "caf/byte_span.hpp"
 #include "caf/detail/net_export.hpp"
-#include "caf/net/http/fwd.hpp"
-#include "caf/net/http/header.hpp"
-#include "caf/net/http/response.hpp"
 
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
 
 namespace caf::net::http {
 
-/// Handle type (implicitly shared) that represents an HTTP client request.
+/// Implicitly shared handle type that represents an HTTP client request with a
+/// promise for the HTTP response.
 class CAF_NET_EXPORT request {
 public:
-  struct impl {
-    header hdr;
-    std::vector<std::byte> body;
-    async::promise<response> prom;
-  };
+  friend class router;
 
-  request() = default;
-  request(request&&) = default;
-  request(const request&) = default;
-  request& operator=(request&&) = default;
-  request& operator=(const request&) = default;
+  class impl;
 
-  /// @private
-  explicit request(std::shared_ptr<impl> pimpl) : pimpl_(std::move(pimpl)) {
-    // nop
-  }
+  request() noexcept = default;
 
-  /// Returns the HTTP header.
+  request(request&& other) noexcept;
+
+  request(const request& other) noexcept;
+
+  request& operator=(request&& other) noexcept;
+
+  request& operator=(const request& other) noexcept;
+
+  ~request();
+
+  /// Returns the HTTP header for the request.
   /// @pre `valid()`
-  const header& hdr() const {
-    return pimpl_->hdr;
-  }
+  const request_header& header() const;
 
-  /// Returns the HTTP body (payload).
+  /// Returns the HTTP body (payload) for the request.
   /// @pre `valid()`
-  const_byte_span body() const {
-    return make_span(pimpl_->body);
-  }
+  const_byte_span body() const;
+
+  /// @copydoc body
+  const_byte_span payload() const;
 
   /// Sends an HTTP response message to the client. Automatically sets the
   /// `Content-Type` and `Content-Length` header fields.
@@ -67,7 +66,10 @@ public:
   }
 
 private:
-  std::shared_ptr<impl> pimpl_;
+  request(request_header hdr, std::vector<std::byte> body,
+          async::promise<response> prom);
+
+  impl* impl_ = nullptr;
 };
 
 } // namespace caf::net::http

@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -10,7 +10,6 @@
 #include "caf/blocking_actor.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/none.hpp"
-#include "caf/scoped_execution_unit.hpp"
 
 namespace caf {
 
@@ -64,7 +63,6 @@ private:
   }
 
   actor_id prev_; // used for logging/debugging purposes only
-  scoped_execution_unit context_;
   strong_actor_ptr self_;
 };
 

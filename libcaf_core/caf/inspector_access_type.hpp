@@ -1,17 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <string>
-#include <type_traits>
-#include <vector>
-
+#include "caf/allowed_unsafe_message_type.hpp"
 #include "caf/detail/is_complete.hpp"
 #include "caf/detail/type_traits.hpp"
 #include "caf/fwd.hpp"
 #include "caf/span.hpp"
+
+#include <string>
+#include <type_traits>
+#include <vector>
 
 namespace caf {
 
@@ -61,11 +62,11 @@ constexpr auto inspect_access_type() {
   else if constexpr (detail::is_builtin_inspector_type<
                        T, Inspector::is_loading>::value)
     return inspector_access_type::builtin{};
-  else if constexpr (has_builtin_inspect<Inspector, T>::value)
+  else if constexpr (has_builtin_inspect_v<Inspector, T>)
     return inspector_access_type::builtin_inspect{};
   else if constexpr (detail::is_complete<inspector_access<T>>)
     return inspector_access_type::specialization{};
-  else if constexpr (has_inspect_overload<Inspector, T>::value)
+  else if constexpr (has_inspect_overload_v<Inspector, T>)
     return inspector_access_type::inspect{};
   else if constexpr (std::is_empty<T>::value)
     return inspector_access_type::empty{};

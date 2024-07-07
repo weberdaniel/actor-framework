@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -193,6 +193,13 @@ make_blocking_producer(producer_resource<T> res) {
   } else {
     return {};
   }
+}
+
+/// @relates blocking_producer
+template <class T>
+std::pair<blocking_producer<T>, consumer_resource<T>> make_blocking_producer() {
+  auto [pull, push] = caf::async::make_spsc_buffer_resource<T>();
+  return {make_blocking_producer(push.try_open()), std::move(pull)};
 }
 
 } // namespace caf::async

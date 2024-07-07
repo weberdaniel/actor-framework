@@ -1,15 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <cstdint>
-#include <string>
 
 #include "caf/config.hpp"
 #include "caf/detail/io_export.hpp"
 #include "caf/expected.hpp"
+
+#include <cstdint>
+#include <string>
 
 namespace caf::io::network {
 
@@ -28,7 +28,7 @@ using socket_recv_ptr = void*;
 using socket_size_type = unsigned;
 #endif
 
-using signed_size_type = std::make_signed<size_t>::type;
+using signed_size_type = std::make_signed_t<size_t>;
 
 // More bootstrapping.
 CAF_IO_EXPORT extern const int ec_out_of_memory;
@@ -74,8 +74,8 @@ CAF_IO_EXPORT std::pair<native_socket, native_socket> create_pipe();
 /// Sets fd to be inherited by child processes if `new_value == true`
 /// or not if `new_value == false`.  Not implemented on Windows.
 /// throws `network_error` on error
-CAF_IO_EXPORT expected<void>
-child_process_inherit(native_socket fd, bool new_value);
+CAF_IO_EXPORT expected<void> child_process_inherit(native_socket fd,
+                                                   bool new_value);
 
 /// Enables keepalive on `fd`. Throws `network_error` on error.
 CAF_IO_EXPORT expected<void> keepalive(native_socket fd, bool new_value);
@@ -93,8 +93,8 @@ CAF_IO_EXPORT expected<void> tcp_nodelay(native_socket fd, bool new_value);
 CAF_IO_EXPORT expected<void> allow_sigpipe(native_socket fd, bool new_value);
 
 /// Enables or disables `SIO_UDP_CONNRESET`error on `fd`.
-CAF_IO_EXPORT expected<void>
-allow_udp_connreset(native_socket fd, bool new_value);
+CAF_IO_EXPORT expected<void> allow_udp_connreset(native_socket fd,
+                                                 bool new_value);
 
 /// Get the socket buffer size for `fd`.
 CAF_IO_EXPORT expected<int> send_buffer_size(native_socket fd);

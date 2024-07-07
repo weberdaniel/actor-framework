@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -8,16 +8,16 @@
 #define CAF_LOG_LEVEL_QUIET 0
 
 /// Integer value for the ERROR log level.
-#define CAF_LOG_LEVEL_ERROR 3
+#define CAF_LOG_LEVEL_ERROR 200
 
 /// Integer value for the WARNING log level.
-#define CAF_LOG_LEVEL_WARNING 6
+#define CAF_LOG_LEVEL_WARNING 300
 
 /// Integer value for the INFO log level.
-#define CAF_LOG_LEVEL_INFO 9
+#define CAF_LOG_LEVEL_INFO 400
 
 /// Integer value for the DEBUG log level.
-#define CAF_LOG_LEVEL_DEBUG 12
+#define CAF_LOG_LEVEL_DEBUG 500
 
 /// Integer value for the TRACE log level.
-#define CAF_LOG_LEVEL_TRACE 15
+#define CAF_LOG_LEVEL_TRACE 600

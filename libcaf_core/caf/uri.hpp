@@ -1,12 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <cstdint>
-#include <string_view>
-#include <vector>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
@@ -18,6 +14,10 @@
 #include "caf/ip_address.hpp"
 #include "caf/make_counted.hpp"
 #include "caf/unordered_flat_map.hpp"
+
+#include <cstdint>
+#include <string_view>
+#include <vector>
 
 namespace caf {
 
@@ -36,16 +36,26 @@ public:
   /// an hostname as string.
   using host_type = std::variant<std::string, ip_address>;
 
+  /// Userinfo subcomponent of the authority component. If present, contains the
+  /// user name and optionally a password.
+  struct userinfo_type {
+    std::string name;
+    std::optional<std::string> password;
+  };
+
   /// Bundles the authority component of the URI, i.e., userinfo, host, and
   /// port.
-  struct authority_type {
-    std::string userinfo;
+  struct CAF_CORE_EXPORT authority_type {
+    std::optional<userinfo_type> userinfo;
     host_type host;
     uint16_t port;
 
     authority_type() : port(0) {
       // nop
     }
+
+    /// Returns the `host` as string.
+    std::string host_str() const;
 
     /// Returns whether `host` is empty, i.e., the host is not an IP address
     /// and the string is empty.
@@ -231,6 +241,12 @@ private:
 };
 
 // -- related free functions ---------------------------------------------------
+
+template <class Inspector>
+bool inspect(Inspector& f, uri::userinfo_type& x) {
+  return f.object(x).fields(f.field("name", x.name),
+                            f.field("password", x.password));
+}
 
 template <class Inspector>
 bool inspect(Inspector& f, uri::authority_type& x) {

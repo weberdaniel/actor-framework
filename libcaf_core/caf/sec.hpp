@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 // This file is partially included in the manual, do not modify
 // without updating the references in the *.tex files!
@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <type_traits>
-
 #include "caf/default_enum_inspect.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/is_error_code_enum.hpp"
+
+#include <cstdint>
+#include <string>
+#include <type_traits>
 
 namespace caf {
 
@@ -83,26 +83,12 @@ enum class sec : uint8_t {
   runtime_error,
   /// Linking to a remote actor failed because actor no longer exists.
   remote_linking_failed,
-  /// Adding an upstream to a stream failed.
-  cannot_add_upstream = 30,
-  /// Adding an upstream to a stream failed because it already exists.
-  upstream_already_exists,
-  /// Unable to process upstream messages because upstream is invalid.
-  invalid_upstream,
-  /// Adding a downstream to a stream failed.
-  cannot_add_downstream,
-  /// Adding a downstream to a stream failed because it already exists.
-  downstream_already_exists,
-  /// Unable to process downstream messages because downstream is invalid.
-  invalid_downstream = 35,
-  /// Cannot start streaming without next stage.
-  no_downstream_stages_defined,
-  /// Actor failed to initialize state after receiving a stream handshake.
-  stream_init_failed,
-  /// Unable to process a stream since due to missing state.
-  invalid_stream_state,
-  /// Stream aborted due to unexpected error.
-  unhandled_stream_error,
+  /// Subscribing to a stream failed because it was invalid.
+  invalid_stream = 30,
+  /// Subscribing to a stream failed because it can only be subscribed to once.
+  cannot_resubscribe_stream,
+  /// A stream was aborted by the hosting actor, usually because it terminated.
+  stream_aborted,
   /// A function view was called without assigning an actor first.
   bad_function_call = 40,
   /// Feature is disabled in the actor system config.
@@ -121,8 +107,8 @@ enum class sec : uint8_t {
   incompatible_versions,
   /// Connection refused because of incompatible application IDs.
   incompatible_application_ids,
-  /// The middleman received a malformed BASP message from another node.
-  malformed_basp_message,
+  /// Received a malformed message from another node.
+  malformed_message,
   /// The middleman closed a connection because it failed to serialize or
   /// deserialize a payload.
   serializing_basp_payload_failed = 50,
@@ -175,10 +161,20 @@ enum class sec : uint8_t {
   disposed,
   /// Failed to open a resource.
   cannot_open_resource,
-  /// Received malformed data on a network socket.
+  /// Received malformed data.
   protocol_error,
   /// Encountered faulty logic in the program.
   logic_error,
+  /// An actor tried to delegate a message to an invalid actor handle.
+  invalid_delegate = 75,
+  /// An actor tried to delegate a message to an invalid actor handle.
+  invalid_request,
+  /// Signals that `future::get` timed out.
+  future_timeout,
+  /// Received invalid UTF-8 encoding.
+  invalid_utf8,
+  /// A downstream operator failed to process inputs on time.
+  backpressure_overflow,
 };
 // --(rst-sec-end)--
 

@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -12,7 +12,7 @@ namespace caf::io::basp {
 /// @{
 
 /// The current BASP version. Note: BASP is not backwards compatible.
-constexpr uint64_t version = 5;
+constexpr uint64_t version = 8;
 
 /// @}
 

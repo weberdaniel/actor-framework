@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <type_traits>
 
 #include "caf/detail/implicit_conversions.hpp"
 #include "caf/expected.hpp"
 #include "caf/fwd.hpp"
+
+#include <type_traits>
 
 namespace caf::detail {
 
@@ -42,7 +42,7 @@ struct dmi<typed_response_promise<Out...>(In...)> {
 
 // -- dmfou = deduce_mpi_function_object_unboxing
 
-template <class T, bool isClass = std::is_class<T>::value>
+template <class T, bool isClass = std::is_class_v<T>>
 struct dmfou;
 
 // case #1a: const member function pointer

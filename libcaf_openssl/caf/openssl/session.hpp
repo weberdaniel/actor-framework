@@ -1,24 +1,24 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <memory>
-
 #include "caf/config.hpp"
+
+#include <memory>
 
 CAF_PUSH_WARNINGS
 #include <openssl/ssl.h>
 CAF_POP_WARNINGS
 
-#include "caf/actor_system.hpp"
-#include "caf/detail/openssl_export.hpp"
 #include "caf/io/network/default_multiplexer.hpp"
 #include "caf/io/network/native_socket.hpp"
 
+#include "caf/actor_system.hpp"
+#include "caf/detail/openssl_export.hpp"
+
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-#  define CAF_SSL_HAS_SECURITY_LEVEL
 #  define CAF_SSL_HAS_NON_VERSIONED_TLS_FUN
 #endif
 
@@ -39,8 +39,8 @@ public:
 
   bool init();
   rw_state read_some(size_t& result, native_socket fd, void* buf, size_t len);
-  rw_state
-  write_some(size_t& result, native_socket fd, const void* buf, size_t len);
+  rw_state write_some(size_t& result, native_socket fd, const void* buf,
+                      size_t len);
   bool try_connect(native_socket fd);
   bool try_accept(native_socket fd);
 

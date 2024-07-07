@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -20,14 +20,20 @@ struct singly_linked {
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  singly_linked(node_pointer n = nullptr) : next(n) {
+  singly_linked() noexcept = default;
+
+  explicit singly_linked(node_pointer n) noexcept : next(n) {
     // nop
   }
+
+  singly_linked(const singly_linked&) = delete;
+
+  singly_linked& operator=(const singly_linked&) = delete;
 
   // -- member variables -------------------------------------------------------
 
   /// Intrusive pointer to the next element.
-  node_pointer next;
+  node_pointer next = nullptr;
 };
 
 } // namespace caf::intrusive

@@ -1,16 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <cstddef>
-#include <cstdint>
-#include <string_view>
 
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/span.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
 
 namespace caf::detail {
 
@@ -24,6 +24,9 @@ struct meta_object {
   /// aligning to `max_align_t`.
   size_t padded_size;
 
+  /// Stores the result of `sizeof` for the type.
+  size_t simple_size;
+
   /// Calls the destructor for given object.
   void (*destroy)(void*) noexcept;
 
@@ -34,6 +37,10 @@ struct meta_object {
   /// Creates a new object at given memory location by calling the copy
   /// constructor.
   void (*copy_construct)(void*, const void*);
+
+  /// Creates a new object at given memory location by calling the move
+  /// constructor.
+  void (*move_construct)(void*, void*);
 
   /// Applies an object to a binary serializer.
   bool (*save_binary)(caf::binary_serializer&, const void*);
@@ -64,8 +71,13 @@ CAF_CORE_EXPORT global_meta_objects_guard_type global_meta_objects_guard();
 /// is the index for accessing the corresponding meta object.
 CAF_CORE_EXPORT span<const meta_object> global_meta_objects();
 
-/// Returns the global meta object for given type ID.
-CAF_CORE_EXPORT const meta_object* global_meta_object(type_id_t id);
+/// Returns the global meta object for given type ID. Aborts the program if no
+/// meta object exists for `id`.
+CAF_CORE_EXPORT const meta_object& global_meta_object(type_id_t id);
+
+/// Returns the global meta object for given type ID or `nullptr` if no meta
+/// object exists for `id`.
+CAF_CORE_EXPORT const meta_object* global_meta_object_or_null(type_id_t id);
 
 /// Clears the array for storing global meta objects.
 /// @warning intended for unit testing only!

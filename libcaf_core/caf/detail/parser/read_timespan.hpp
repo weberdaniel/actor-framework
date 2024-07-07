@@ -1,19 +1,19 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <chrono>
-#include <cstdint>
-#include <optional>
-#include <string>
 
 #include "caf/config.hpp"
 #include "caf/detail/parser/read_signed_integer.hpp"
 #include "caf/detail/scope_guard.hpp"
 #include "caf/pec.hpp"
 #include "caf/timestamp.hpp"
+
+#include <chrono>
+#include <cstdint>
+#include <optional>
+#include <string>
 
 CAF_PUSH_UNUSED_LABEL_WARNING
 
@@ -37,10 +37,6 @@ void read_timespan(State& ps, Consumer&& consumer,
   };
   interim_consumer ic;
   timespan result;
-  auto g = make_scope_guard([&] {
-    if (ps.code <= pec::trailing_character)
-      consumer.value(std::move(result));
-  });
   // clang-format off
   start();
   state(init) {
@@ -72,6 +68,8 @@ void read_timespan(State& ps, Consumer&& consumer,
   }
   fin();
   // clang-format on
+  if (ps.code <= pec::trailing_character)
+    consumer.value(std::move(result));
 }
 
 } // namespace caf::detail::parser

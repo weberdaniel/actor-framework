@@ -1,12 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
+#include "caf/net/fwd.hpp"
+
 #include "caf/detail/net_export.hpp"
 #include "caf/fwd.hpp"
-#include "caf/net/fwd.hpp"
 
 namespace caf::net {
 
@@ -17,7 +18,7 @@ public:
   virtual ~socket_event_layer();
 
   /// Starts processing on this layer.
-  virtual error start(socket_manager* owner, const settings& cfg) = 0;
+  virtual error start(socket_manager* owner) = 0;
 
   /// Returns the handle for the managed socket.
   virtual socket handle() const = 0;

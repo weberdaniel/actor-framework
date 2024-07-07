@@ -1,8 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/config.hpp"
+#include "caf/detail/core_export.hpp"
+#include "caf/detail/type_traits.hpp"
+#include "caf/fwd.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -12,11 +17,13 @@
 #include <type_traits>
 #include <vector>
 
-#include "caf/config.hpp"
-#include "caf/detail/core_export.hpp"
-#include "caf/detail/type_traits.hpp"
-
 namespace caf {
+
+/// Tag type for selecting case-insensitive algorithms.
+struct ignore_case_t {};
+
+/// Tag for selecting case-insensitive algorithms.
+constexpr ignore_case_t ignore_case = ignore_case_t{};
 
 // provide boost::split compatible interface
 
@@ -86,5 +93,8 @@ CAF_CORE_EXPORT bool starts_with(std::string_view str, std::string_view prefix);
 
 /// Returns whether `str` ends with `suffix`.
 CAF_CORE_EXPORT bool ends_with(std::string_view str, std::string_view suffix);
+
+/// Returns a string representation of `bytes` in hexadecimal notation.
+CAF_CORE_EXPORT std::string to_hex_str(const_byte_span bytes);
 
 } // namespace caf

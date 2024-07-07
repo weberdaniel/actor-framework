@@ -1,13 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include "caf/byte_span.hpp"
-#include "caf/detail/net_export.hpp"
+#include "caf/net/fwd.hpp"
 #include "caf/net/ssl/errc.hpp"
 #include "caf/net/stream_socket.hpp"
+
+#include "caf/byte_span.hpp"
+#include "caf/detail/net_export.hpp"
 
 #include <cstddef>
 
@@ -17,6 +19,9 @@ namespace caf::net::ssl {
 class CAF_NET_EXPORT connection {
 public:
   // -- member types -----------------------------------------------------------
+
+  /// The default transport for exchanging raw bytes over an SSL connection.
+  using transport_type = transport;
 
   /// The opaque implementation type.
   struct impl;
@@ -30,10 +35,6 @@ public:
   connection& operator=(connection&& other);
 
   ~connection();
-
-  // -- factories --------------------------------------------------------------
-
-  expected<connection> make(stream_socket fd);
 
   // -- native handles ---------------------------------------------------------
 
@@ -65,7 +66,7 @@ public:
   /// from a client.
   [[nodiscard]] ptrdiff_t accept();
 
-  /// Gracefully closes the SSL connection.
+  /// Gracefully closes the SSL connection without closing the socket.
   ptrdiff_t close();
 
   // -- reading and writing ----------------------------------------------------
@@ -101,8 +102,30 @@ private:
   impl* pimpl_;
 };
 
-inline bool valid(const connection& conn) {
+} // namespace caf::net::ssl
+
+// -- free functions -----------------------------------------------------------
+
+namespace caf::net {
+
+/// Checks whether `conn` contains a valid socket.
+inline bool valid(const ssl::connection& conn) {
   return conn.valid();
 }
 
-} // namespace caf::net::ssl
+/// Tries to fill `buf` with data from the managed socket of `conn`.
+inline ptrdiff_t read(ssl::connection& conn, byte_span buf) {
+  return conn.read(buf);
+}
+
+/// Tries to write bytes from `buf` to the managed socket of `conn`.
+inline ptrdiff_t write(ssl::connection& conn, const_byte_span buf) {
+  return conn.write(buf);
+}
+
+/// Returns the socket ID of `conn`.
+inline socket_id get_socket_id(const ssl::connection& conn) noexcept {
+  return conn.fd().id;
+}
+
+} // namespace caf::net

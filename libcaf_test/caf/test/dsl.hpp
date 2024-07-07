@@ -1,26 +1,35 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <type_traits>
+#include "caf/test/unit_test.hpp"
 
 #include "caf/all.hpp"
 #include "caf/binary_serializer.hpp"
 #include "caf/byte_buffer.hpp"
 #include "caf/config.hpp"
+#include "caf/detail/actor_system_access.hpp"
+#include "caf/detail/assert.hpp"
+#include "caf/detail/test_coordinator.hpp"
+#include "caf/fwd.hpp"
 #include "caf/init_global_meta_objects.hpp"
-#include "caf/test/unit_test.hpp"
+#include "caf/log/test.hpp"
+
+#include <tuple>
+#include <type_traits>
 
 CAF_PUSH_WARNINGS
+
+using test_coordinator = caf::detail::test_coordinator;
 
 /// The type of `_`.
 struct wildcard {};
 
 /// Allows ignoring individual messages elements in `expect` clauses, e.g.
 /// `expect((int, int), from(foo).to(bar).with(1, _))`.
-constexpr wildcard _ = wildcard{};
+constexpr wildcard _ = wildcard{}; // NOLINT(bugprone-reserved-identifier)
 
 /// @relates wildcard
 constexpr bool operator==(const wildcard&, const wildcard&) {
@@ -29,19 +38,19 @@ constexpr bool operator==(const wildcard&, const wildcard&) {
 
 template <size_t I, class T>
 bool cmp_one(const caf::message& x, const T& y) {
-  if (std::is_same<T, wildcard>::value)
+  if (std::is_same_v<T, wildcard>)
     return true;
   return x.match_element<T>(I) && x.get_as<T>(I) == y;
 }
 
 template <size_t I, class... Ts>
-typename std::enable_if<(I == sizeof...(Ts)), bool>::type
+std::enable_if_t<(I == sizeof...(Ts)), bool>
 msg_cmp_rec(const caf::message&, const std::tuple<Ts...>&) {
   return true;
 }
 
 template <size_t I, class... Ts>
-typename std::enable_if<(I < sizeof...(Ts)), bool>::type
+std::enable_if_t<(I < sizeof...(Ts)), bool>
 msg_cmp_rec(const caf::message& x, const std::tuple<Ts...>& ys) {
   return cmp_one<I>(x, std::get<I>(ys)) && msg_cmp_rec<I + 1>(x, ys);
 }
@@ -74,7 +83,7 @@ struct has_outer_type {
   static auto sfinae(...) -> std::false_type;
 
   using type = decltype(sfinae<T>(nullptr));
-  static constexpr bool value = !std::is_same<type, std::false_type>::value;
+  static constexpr bool value = !std::is_same_v<type, std::false_type>;
 };
 
 // enables ADL in `with_content`
@@ -163,8 +172,7 @@ public:
     return *this;
   }
 
-  template <class T,
-            class E = caf::detail::enable_if_t<!std::is_pointer<T>::value>>
+  template <class T, class E = std::enable_if_t<!std::is_pointer_v<T>>>
   caf_handle& operator=(const T& x) {
     set(x);
     return *this;
@@ -249,18 +257,29 @@ std::optional<std::tuple<T, Ts...>> try_extract(caf_handle x) {
 /// Returns the content of the next mailbox element without taking it out of
 /// the mailbox. Fails on an empty mailbox or if the content of the next
 /// element does not match `<T, Ts...>`.
-template <class T, class... Ts>
-std::tuple<T, Ts...> extract(caf_handle x, int src_line) {
-  if (auto result = try_extract<T, Ts...>(x)) {
-    return std::move(*result);
+template <class... Ts>
+std::tuple<Ts...> extract(caf_handle x, int src_line) {
+  if constexpr (sizeof...(Ts) > 0) {
+    if (auto result = try_extract<Ts...>(x)) {
+      return std::move(*result);
+    } else {
+      auto ptr = x->peek_at_next_mailbox_element();
+      if (ptr == nullptr)
+        CAF_FAIL("cannot peek at the next message: mailbox is empty", src_line);
+      else
+        CAF_FAIL("message does not match expected types: "
+                   << to_string(ptr->content()),
+                 src_line);
+    }
   } else {
     auto ptr = x->peek_at_next_mailbox_element();
     if (ptr == nullptr)
       CAF_FAIL("cannot peek at the next message: mailbox is empty", src_line);
-    else
-      CAF_FAIL("message does not match expected types: "
+    else if (!ptr->content().empty())
+      CAF_FAIL("message does not match (expected an empty message): "
                  << to_string(ptr->content()),
                src_line);
+    return {};
   }
 }
 
@@ -272,7 +291,7 @@ bool received(caf_handle x) {
 template <class... Ts>
 class expect_clause {
 public:
-  explicit expect_clause(caf::scheduler::test_coordinator& sched, int src_line)
+  explicit expect_clause(test_coordinator& sched, int src_line)
     : sched_(sched), src_line_(src_line) {
     peek_ = [this] {
       /// The extractor will call CAF_FAIL on a type mismatch, essentially
@@ -345,7 +364,7 @@ protected:
       dptr->dequeue(); // Drop message.
   }
 
-  caf::scheduler::test_coordinator& sched_;
+  test_coordinator& sched_;
   caf::strong_actor_ptr src_;
   caf::abstract_actor* dest_ = nullptr;
   std::function<void()> peek_;
@@ -355,7 +374,7 @@ protected:
 template <>
 class expect_clause<void> {
 public:
-  explicit expect_clause(caf::scheduler::test_coordinator& sched, int src_line)
+  explicit expect_clause(test_coordinator& sched, int src_line)
     : sched_(sched), src_line_(src_line) {
     // nop
   }
@@ -412,7 +431,7 @@ protected:
       dptr->dequeue(); // Drop message.
   }
 
-  caf::scheduler::test_coordinator& sched_;
+  test_coordinator& sched_;
   caf::strong_actor_ptr src_;
   caf::abstract_actor* dest_ = nullptr;
   int src_line_;
@@ -421,7 +440,7 @@ protected:
 template <class... Ts>
 class inject_clause {
 public:
-  explicit inject_clause(caf::scheduler::test_coordinator& sched, int src_line)
+  explicit inject_clause(test_coordinator& sched, int src_line)
     : sched_(sched), src_line_(src_line) {
     // nop
   }
@@ -454,10 +473,10 @@ public:
     if (dest_ == nullptr)
       CAF_FAIL("missing .to() in inject() statement", src_line_);
     else if (src_ == nullptr)
-      caf::anon_send(caf::actor_cast<caf::actor>(dest_), msg_);
+      caf::anon_mail(msg_).send(caf::actor_cast<caf::actor>(dest_));
     else
-      caf::send_as(caf::actor_cast<caf::actor>(src_),
-                   caf::actor_cast<caf::actor>(dest_), msg_);
+      caf::detail::send_as(caf::actor_cast<caf::actor>(src_),
+                           caf::actor_cast<caf::actor>(dest_), msg_);
     if (!sched_.prioritize(dest_))
       CAF_FAIL("inject: failed to schedule destination actor", src_line_);
     auto dest_ptr = &sched_.next_job<caf::abstract_actor>();
@@ -486,7 +505,7 @@ protected:
       dptr->dequeue(); // Drop message.
   }
 
-  caf::scheduler::test_coordinator& sched_;
+  test_coordinator& sched_;
   caf::strong_actor_ptr src_;
   caf::strong_actor_ptr dest_;
   caf::message msg_;
@@ -496,7 +515,7 @@ protected:
 template <class... Ts>
 class allow_clause {
 public:
-  explicit allow_clause(caf::scheduler::test_coordinator& sched, int src_line)
+  explicit allow_clause(test_coordinator& sched, int src_line)
     : sched_(sched), src_line_(src_line) {
     peek_ = [this] {
       if (dest_ != nullptr)
@@ -549,14 +568,12 @@ public:
       << term::yellow << "  -> " << term::reset
       << test::logger::stream::reset_flags_t{} << "allow" << type_str << "."
       << fields_str << " [line " << src_line_ << "]\n";
-    if (!dest_) {
+    if (!dest_)
       return false;
-    }
-    if (auto msg_ptr = dest_->peek_at_next_mailbox_element(); !msg_ptr) {
+    if (auto msg_ptr = dest_->peek_at_next_mailbox_element();
+        !msg_ptr || (src_ && msg_ptr->sender != src_))
       return false;
-    } else if (src_ && msg_ptr->sender != src_) {
-      return false;
-    } else if (peek_()) {
+    if (peek_()) {
       run_once();
       return true;
     } else {
@@ -573,7 +590,7 @@ protected:
       dptr->dequeue(); // Drop message.
   }
 
-  caf::scheduler::test_coordinator& sched_;
+  test_coordinator& sched_;
   caf::strong_actor_ptr src_;
   caf::abstract_actor* dest_ = nullptr;
   std::function<bool()> peek_;
@@ -679,8 +696,7 @@ class test_coordinator_fixture {
 public:
   // -- member types -----------------------------------------------------------
 
-  /// A deterministic scheduler type.
-  using scheduler_type = caf::scheduler::test_coordinator;
+  using scheduler_type = test_coordinator;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -689,14 +705,15 @@ public:
                              caf::test::engine::argv()))
       CAF_FAIL("failed to parse config: " << to_string(err));
     cfg.set("caf.scheduler.policy", "testing");
-    cfg.set("caf.logger.inline-output", true);
     if (cfg.custom_options().has_category("caf.middleman")) {
-      cfg.set("caf.middleman.network-backend", "testing");
-      cfg.set("caf.middleman.manual-multiplexing", true);
       cfg.set("caf.middleman.workers", size_t{0});
       cfg.set("caf.middleman.heartbeat-interval", caf::timespan{0});
     }
     return cfg;
+  }
+
+  auto& clock() {
+    return dynamic_cast<caf::detail::test_actor_clock&>(sys.clock());
   }
 
   template <class... Ts>
@@ -706,7 +723,7 @@ public:
       self(sys, true),
       sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
     // Make sure the current time isn't 0.
-    sched.clock().current_time += std::chrono::hours(1);
+    clock().current_time += std::chrono::hours(1);
   }
 
   virtual ~test_coordinator_fixture() {
@@ -782,7 +799,7 @@ public:
   ///          timeouts triggered.
   template <class BoolPredicate>
   size_t run_until(BoolPredicate predicate) {
-    CAF_LOG_TRACE("");
+    auto lg = caf::log::test::trace("");
     // Bookkeeping.
     size_t events = 0;
     // Loop until no activity remains.
@@ -792,7 +809,7 @@ public:
         ++progress;
         ++events;
         if (predicate()) {
-          CAF_LOG_DEBUG("stop due to predicate:" << CAF_ARG(events));
+          caf::log::test::debug("stop due to predicate: events = {}", events);
           return events;
         }
       }
@@ -800,7 +817,7 @@ public:
         ++progress;
         ++events;
         if (predicate()) {
-          CAF_LOG_DEBUG("stop due to predicate:" << CAF_ARG(events));
+          caf::log::test::debug("stop due to predicate: events = {}", events);
           return events;
         }
       }
@@ -809,7 +826,7 @@ public:
         ++events;
       }
       if (progress == 0) {
-        CAF_LOG_DEBUG("no activity left:" << CAF_ARG(events));
+        caf::log::test::debug("no activity left: events = {}", events);
         return events;
       }
     }
@@ -817,19 +834,19 @@ public:
 
   /// Call `run()` when the next scheduled actor becomes ready.
   void run_after_next_ready_event() {
-    sched.after_next_enqueue([=] { run(); });
+    sched.after_next_enqueue([this] { run(); });
   }
 
   /// Call `run_until(predicate)` when the next scheduled actor becomes ready.
   template <class BoolPredicate>
   void run_until_after_next_ready_event(BoolPredicate predicate) {
-    sched.after_next_enqueue([=] { run_until(predicate); });
+    sched.after_next_enqueue([this, predicate] { run_until(predicate); });
   }
 
   /// Sends a request to `hdl`, then calls `run()`, and finally fetches and
   /// returns the result.
   template <class T, class... Ts, class Handle, class... Us>
-  typename std::conditional<sizeof...(Ts) == 0, T, std::tuple<T, Ts...>>::type
+  std::conditional_t<sizeof...(Ts) == 0, T, std::tuple<T, Ts...>>
   request(Handle hdl, Us... args) {
     auto res_hdl = self->request(hdl, caf::infinite, std::move(args)...);
     run();

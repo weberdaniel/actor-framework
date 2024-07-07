@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <vector>
 
 #include "caf/config_option.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
+
+#include <vector>
 
 namespace caf {
 
@@ -34,11 +34,6 @@ public:
   add(std::string_view name, std::string_view description) {
     return add_impl(make_config_option<T>(category_, name, description));
   }
-
-  /// For backward compatibility only. Do not use for new code!
-  /// @private
-  config_option_adder& add_neg(bool& ref, std::string_view name,
-                               std::string_view description);
 
 private:
   // -- properties -------------------------------------------------------------

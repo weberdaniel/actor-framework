@@ -1,11 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <cstdint>
-#include <type_traits>
 
 #include "caf/config.hpp"
 #include "caf/detail/parser/add_ascii.hpp"
@@ -15,6 +12,9 @@
 #include "caf/detail/parser/sub_ascii.hpp"
 #include "caf/detail/scope_guard.hpp"
 #include "caf/pec.hpp"
+
+#include <cstdint>
+#include <type_traits>
 
 CAF_PUSH_UNUSED_LABEL_WARNING
 
@@ -26,18 +26,11 @@ namespace caf::detail::parser {
 /// `double`.
 template <class State, class Consumer>
 void read_signed_integer(State& ps, Consumer&& consumer) {
-  using consumer_type = typename std::decay<Consumer>::type;
+  using consumer_type = std::decay_t<Consumer>;
   using value_type = typename consumer_type::value_type;
-  static_assert(std::is_integral<value_type>::value
-                  && std::is_signed<value_type>::value,
+  static_assert(std::is_integral_v<value_type> && std::is_signed_v<value_type>,
                 "expected a signed integer type");
   value_type result = 0;
-  // Computes the result on success.
-  auto g = caf::detail::make_scope_guard([&] {
-    if (ps.code <= pec::trailing_character) {
-      consumer.value(std::move(result));
-    }
-  });
   // clang-format off
   // Definition of our parser FSM.
   start();
@@ -122,6 +115,9 @@ void read_signed_integer(State& ps, Consumer&& consumer) {
   }
   fin();
   // clang-format on
+  if (ps.code <= pec::trailing_character) {
+    consumer.value(std::move(result));
+  }
 }
 
 } // namespace caf::detail::parser

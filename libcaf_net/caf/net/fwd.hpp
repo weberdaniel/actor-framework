@@ -1,10 +1,11 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include "caf/async/fwd.hpp"
+#include "caf/detail/net_export.hpp"
+#include "caf/flow/fwd.hpp"
 #include "caf/fwd.hpp"
 #include "caf/intrusive_ptr.hpp"
 #include "caf/type_id.hpp"
@@ -16,8 +17,6 @@ namespace caf::net {
 
 // -- templates ----------------------------------------------------------------
 
-class stream_transport;
-
 template <class Factory>
 class datagram_transport;
 
@@ -27,15 +26,13 @@ class typed_actor_shell;
 template <class... Sigs>
 class typed_actor_shell_ptr;
 
-template <class Trait>
-class flow_connector;
-
 // -- classes ------------------------------------------------------------------
 
 class actor_shell;
 class actor_shell_ptr;
 class middleman;
 class multiplexer;
+class socket_event_layer;
 class socket_manager;
 class this_host;
 
@@ -53,11 +50,12 @@ struct udp_datagram_socket;
 
 // -- smart pointer aliases ----------------------------------------------------
 
+CAF_NET_EXPORT void intrusive_ptr_add_ref(socket_manager* ptr) noexcept;
+
+CAF_NET_EXPORT void intrusive_ptr_release(socket_manager* ptr) noexcept;
+
 using multiplexer_ptr = intrusive_ptr<multiplexer>;
 using socket_manager_ptr = intrusive_ptr<socket_manager>;
-
-template <class Trait>
-using flow_connector_ptr = std::shared_ptr<flow_connector<Trait>>;
 
 // -- miscellaneous aliases ----------------------------------------------------
 
@@ -82,7 +80,78 @@ template <class Handle>
 using actor_shell_ptr_t = typename actor_shell_ptr_oracle<Handle>::type;
 
 template <class Handle = caf::actor>
-actor_shell_ptr_t<Handle>
-make_actor_shell(actor_system&, async::execution_context_ptr);
+actor_shell_ptr_t<Handle> make_actor_shell(socket_manager*);
 
 } // namespace caf::net
+
+namespace caf::net::octet_stream {
+
+class lower_layer;
+class policy;
+class transport;
+class upper_layer;
+
+enum class errc;
+
+} // namespace caf::net::octet_stream
+
+namespace caf::net::lp {
+
+class client;
+class framing;
+class lower_layer;
+class server;
+class upper_layer;
+
+using frame = caf::chunk;
+
+} // namespace caf::net::lp
+
+namespace caf::net::web_socket {
+
+class client;
+class frame;
+class framing;
+class has_on_request;
+class lower_layer;
+class server;
+class upper_layer;
+
+enum class status : uint16_t;
+
+} // namespace caf::net::web_socket
+
+namespace caf::net::http {
+
+class header;
+class lower_layer;
+class request;
+class request_header;
+class responder;
+class response;
+class response_header;
+class route;
+class router;
+class server;
+class upper_layer;
+
+enum class method : uint8_t;
+enum class status : uint16_t;
+
+using route_ptr = intrusive_ptr<route>;
+
+} // namespace caf::net::http
+
+namespace caf::net::ssl {
+
+class acceptor;
+class connection;
+class context;
+class transport;
+
+enum class dtls;
+enum class errc : uint8_t;
+enum class format;
+enum class tls;
+
+} // namespace caf::net::ssl

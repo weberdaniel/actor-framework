@@ -1,16 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <string>
-#include <string_view>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/hash/fnv.hpp"
+
+#include <string>
+#include <string_view>
 
 namespace caf::telemetry {
 
@@ -53,7 +53,15 @@ public:
 
   // -- comparison -------------------------------------------------------------
 
-  int compare(const label& x) const noexcept;
+  template <class T1, class T2>
+  static int compare(const T1& lhs, const T2& rhs) noexcept {
+    auto cmp1 = lhs.name().compare(rhs.name());
+    return cmp1 != 0 ? cmp1 : lhs.value().compare(rhs.value());
+  }
+
+  int compare(const label_view& other) const noexcept;
+
+  int compare(const label& other) const noexcept;
 
 private:
   size_t name_length_;

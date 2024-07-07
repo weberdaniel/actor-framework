@@ -1,17 +1,17 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <string_view>
-#include <utility>
 
 #include "caf/detail/as_mutable_ref.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/error.hpp"
 #include "caf/inspector_access.hpp"
 #include "caf/sec.hpp"
+
+#include <string_view>
+#include <utility>
 
 namespace caf {
 
@@ -75,7 +75,7 @@ public:
     template <class Inspector>
     bool operator()(Inspector& f) {
       auto is_present = [this] { return *val != fallback; };
-      auto get = [this] { return *val; };
+      auto get = [this]() -> decltype(auto) { return *val; };
       return detail::save_field(f, field_name, is_present, get);
     }
 
@@ -178,7 +178,7 @@ public:
       using save_callback_result = decltype(save_callback());
       if (!(f->begin_object(object_type, object_name) && (fs(*f) && ...)))
         return false;
-      if constexpr (std::is_same<save_callback_result, bool>::value) {
+      if constexpr (std::is_same_v<save_callback_result, bool>) {
         if (!save_callback()) {
           f->set_error(sec::save_callback_failed);
           return false;
@@ -239,7 +239,7 @@ public:
 
   template <class T>
   static auto field(std::string_view name, T& x) {
-    static_assert(!std::is_const<T>::value);
+    static_assert(!std::is_const_v<T>);
     return field_t<T>{name, std::addressof(x)};
   }
 

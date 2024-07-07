@@ -1,13 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
+#include "caf/detail/io_export.hpp"
+
 #include <cstddef>
 #include <string>
-
-#include "caf/detail/io_export.hpp"
 
 namespace caf::io::network {
 
@@ -20,6 +20,14 @@ struct protocol {
   transport trans;
   network net;
 };
+
+constexpr bool operator==(const protocol& lhs, const protocol& rhs) noexcept {
+  return lhs.trans == rhs.trans && lhs.net == rhs.net;
+}
+
+constexpr bool operator!=(const protocol& lhs, const protocol& rhs) noexcept {
+  return !(lhs == rhs);
+}
 
 inline std::string to_string(protocol::transport x) {
   return x == protocol::tcp ? "TCP" : "UDP";

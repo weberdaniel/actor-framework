@@ -1,19 +1,20 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <functional>
-#include <new>
-#include <utility>
-
 #include "caf/detail/core_export.hpp"
 #include "caf/expected.hpp"
+#include "caf/fwd.hpp"
 #include "caf/response_type.hpp"
 #include "caf/scoped_actor.hpp"
 #include "caf/timespan.hpp"
 #include "caf/typed_actor.hpp"
+
+#include <functional>
+#include <new>
+#include <utility>
 
 namespace caf {
 
@@ -52,21 +53,11 @@ private:
   std::tuple<Ts...>* storage_;
 };
 
-template <>
-class function_view_storage<unit_t> {
-public:
-  using type = function_view_storage;
+/// Convenience alias for `function_view_storage<T>::type`.
+template <class T>
+using function_view_storage_t = typename function_view_storage<T>::type;
 
-  explicit function_view_storage(unit_t&) {
-    // nop
-  }
-
-  void operator()() {
-    // nop
-  }
-};
-
-struct CAF_CORE_EXPORT function_view_storage_catch_all {
+struct function_view_storage_catch_all {
   message* storage_;
 
   explicit function_view_storage_catch_all(message& ptr) : storage_(&ptr) {
@@ -82,7 +73,18 @@ struct CAF_CORE_EXPORT function_view_storage_catch_all {
 template <>
 class function_view_storage<message> {
 public:
-  using type = catch_all<function_view_storage_catch_all>;
+  using type = function_view_storage;
+
+  explicit function_view_storage(message& ptr) : storage_(&ptr) {
+    // nop
+  }
+
+  void operator()(message& msg) {
+    *storage_ = std::move(msg);
+  }
+
+private:
+  message* storage_;
 };
 
 template <class T>
@@ -93,11 +95,6 @@ struct function_view_flattened_result {
 template <class T>
 struct function_view_flattened_result<std::tuple<T>> {
   using type = T;
-};
-
-template <>
-struct function_view_flattened_result<std::tuple<void>> {
-  using type = unit_t;
 };
 
 template <class T>
@@ -114,6 +111,9 @@ struct function_view_result<typed_actor<Ts...>> {
   typed_actor<Ts...> value{nullptr};
 };
 
+#define CAF_FUNCTION_VIEW_MSG                                                  \
+  "use a scoped_actor with mail(...).request(...).receive()"
+
 /// A function view for an actor hides any messaging from the caller.
 /// Internally, a function view uses a `scoped_actor` and uses
 /// blocking send and receive operations.
@@ -123,35 +123,49 @@ class function_view {
 public:
   using type = Actor;
 
-  function_view() : timeout(infinite) {
+  [[deprecated(CAF_FUNCTION_VIEW_MSG)]]
+  function_view()
+    : timeout(infinite) {
     // nop
   }
 
-  explicit function_view(timespan rel_timeout) : timeout(rel_timeout) {
+  [[deprecated(CAF_FUNCTION_VIEW_MSG)]]
+  explicit function_view(timespan rel_timeout)
+    : timeout(rel_timeout) {
     // nop
   }
 
+  [[deprecated(CAF_FUNCTION_VIEW_MSG)]]
   explicit function_view(type impl)
     : timeout(infinite), impl_(std::move(impl)) {
     new_self(impl_);
   }
 
+  [[deprecated(CAF_FUNCTION_VIEW_MSG)]]
   function_view(type impl, timespan rel_timeout)
     : timeout(rel_timeout), impl_(std::move(impl)) {
     new_self(impl_);
   }
 
-  ~function_view() {
-    if (impl_)
-      self_.~scoped_actor();
-  }
-
+  [[deprecated(CAF_FUNCTION_VIEW_MSG)]]
   function_view(function_view&& x)
     : timeout(x.timeout), impl_(std::move(x.impl_)) {
     if (impl_) {
       new (&self_) scoped_actor(impl_.home_system()); //(std::move(x.self_));
       x.self_.~scoped_actor();
     }
+  }
+
+  struct priv_tag {}; // selects a non-deprecated constructor
+
+  function_view(priv_tag, type impl, timespan rel_timeout)
+    : function_view(std::move(impl), rel_timeout) {
+    // nop
+  }
+
+  ~function_view() {
+    if (impl_)
+      self_.~scoped_actor();
   }
 
   function_view& operator=(function_view&& x) {
@@ -174,13 +188,31 @@ public:
     if (!impl_)
       return result_type{sec::bad_function_call};
     error err;
-    function_view_result<value_type> result;
-    self_->request(impl_, timeout, std::forward<Ts>(xs)...)
-      .receive([&](error& x) { err = std::move(x); },
-               typename function_view_storage<value_type>::type{result.value});
-    if (err)
-      return result_type{err};
-    return result_type{flatten(result.value)};
+    if constexpr (std::is_void_v<value_type>) {
+      self_->mail(std::forward<Ts>(xs)...)
+        .request(impl_, timeout)
+        .receive([] {}, [&err](error& x) { err = std::move(x); });
+      if (err)
+        return result_type{err};
+      else
+        return result_type{};
+    } else {
+      function_view_result<value_type> result;
+      self_->mail(std::forward<Ts>(xs)...)
+        .request(impl_, timeout)
+        .receive(function_view_storage_t<value_type>{result.value},
+                 [&err](error& x) {
+                   if (!x) {
+                     err = caf::make_error(sec::bad_function_call);
+                     return;
+                   }
+                   err = std::move(x);
+                 });
+      if (err)
+        return result_type{err};
+      else
+        return result_type{flatten(result.value)};
+    }
   }
 
   void assign(type x) {
@@ -258,8 +290,10 @@ bool operator!=(std::nullptr_t x, const function_view<T>& y) {
 /// @relates function_view
 /// @experimental
 template <class T>
+[[deprecated(CAF_FUNCTION_VIEW_MSG)]]
 auto make_function_view(const T& x, timespan t = infinite) {
-  return function_view<T>{x, t};
+  using res_t = function_view<T>;
+  return res_t{typename res_t::priv_tag{}, x, t};
 }
 
 } // namespace caf

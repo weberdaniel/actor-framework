@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -40,14 +40,9 @@ public:
     has_human_readable_format_ = true;
   }
 
-  config_value_writer(config_value* dst, execution_unit* ctx) : super(ctx) {
+  explicit config_value_writer(config_value* dst) {
     st_.push(dst);
     has_human_readable_format_ = true;
-  }
-
-  explicit config_value_writer(config_value* destination)
-    : config_value_writer(destination, nullptr) {
-    // nop
   }
 
   ~config_value_writer() override;

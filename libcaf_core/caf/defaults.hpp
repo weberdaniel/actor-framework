@@ -1,8 +1,12 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/detail/build_config.hpp"
+#include "caf/detail/log_level.hpp"
+#include "caf/timestamp.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -10,10 +14,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "caf/detail/build_config.hpp"
-#include "caf/detail/log_level.hpp"
-#include "caf/timestamp.hpp"
 
 // -- hard-coded default values for various CAF options ------------------------
 
@@ -31,6 +31,11 @@ template <class T>
 constexpr parameter<T> make_parameter(std::string_view name, T fallback) {
   return {name, fallback};
 }
+
+/// Configures how many actions scheduled_actor::delay may add to the internal
+/// queue for scheduled_actor::run_actions before being forced to push them to
+/// the mailbox instead.
+constexpr auto max_inline_actions_per_run = size_t{10};
 
 } // namespace caf::defaults
 
@@ -89,9 +94,7 @@ constexpr auto buffer_size = int32_t{4096}; // // 32 KB for elements of size 8.
 namespace caf::defaults::scheduler {
 
 constexpr auto policy = std::string_view{"stealing"};
-constexpr auto profiling_output_file = std::string_view{""};
 constexpr auto max_throughput = std::numeric_limits<size_t>::max();
-constexpr auto profiling_resolution = timespan(100'000'000);
 
 } // namespace caf::defaults::scheduler
 
@@ -109,7 +112,7 @@ constexpr auto relaxed_sleep_duration = timespan{10'000'000};
 
 namespace caf::defaults::logger::file {
 
-constexpr auto format = std::string_view{"%r %c %p %a %t %C %M %F:%L %m%n"};
+constexpr auto format = std::string_view{"%r %c %p %a %t %M %F:%L %m%n"};
 constexpr auto path
   = std::string_view{"actor_log_[PID]_[TIMESTAMP]_[NODE].log"};
 
@@ -136,9 +139,19 @@ constexpr auto network_backend = std::string_view{"default"};
 
 namespace caf::defaults::flow {
 
+/// Defines how much demand should accumulate before signaling demand upstream.
+/// A minimum demand is used by operators such as `observe_on` to avoid overly
+/// frequent signaling across asynchronous barriers.
 constexpr auto min_demand = size_t{8};
+
+/// Defines how many items a single batch may contain.
 constexpr auto batch_size = size_t{32};
+
+/// Limits how many items an operator buffers internally.
 constexpr auto buffer_size = size_t{128};
+
+/// Limits the number of concurrent subscriptions for operators such as `merge`.
+constexpr auto max_concurrent = size_t{8};
 
 } // namespace caf::defaults::flow
 
@@ -148,5 +161,17 @@ namespace caf::defaults::net {
 /// this limit, the connector stops accepting additional connections until a
 /// previous connection has been closed.
 constexpr auto max_connections = make_parameter("max-connections", size_t{64});
+
+/// Default maximum size for incoming HTTP requests: 64KiB.
+constexpr auto http_max_request_size = uint32_t{65'536};
+
+/// The default port for HTTP servers.
+constexpr auto http_default_port = uint16_t{80};
+
+/// The default port for HTTPS servers.
+constexpr auto https_default_port = uint16_t{443};
+
+/// The default buffer size for reading and writing octet streams.
+constexpr auto octet_stream_buffer_size = uint32_t{1024};
 
 } // namespace caf::defaults::net

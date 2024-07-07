@@ -1,138 +1,190 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
+#include "caf/detail/assert.hpp"
+#include "caf/flow/gen/from_container.hpp"
+#include "caf/flow/gen/just.hpp"
 #include "caf/flow/observer.hpp"
 #include "caf/flow/op/cold.hpp"
 #include "caf/flow/op/empty.hpp"
+#include "caf/flow/op/from_generator.hpp"
+#include "caf/flow/op/pullable.hpp"
 #include "caf/flow/subscription.hpp"
-#include "caf/make_counted.hpp"
 
 #include <deque>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace caf::flow::op {
 
-/// @relates merge
 template <class T>
 struct merge_input {
-  /// The subscription to this input.
-  subscription sub;
+  using value_type = T;
 
-  /// Stores received items until the merge can forward them downstream.
+  subscription sub;
   std::deque<T> buf;
+
+  T pop() {
+    auto result = std::move(buf.front());
+    buf.pop_front();
+    return result;
+  }
+
+  /// Returns whether the input can no longer produce additional items.
+  bool at_end() const noexcept {
+    return !sub && buf.empty();
+  }
 };
 
+/// Receives observables from the pre-merge step and merges their inputs for the
+/// observer.
 template <class T>
-class merge_sub : public subscription::impl_base {
+class merge_sub : public subscription::impl_base,
+                  public observer_impl<observable<T>>,
+                  public pullable {
 public:
   // -- member types -----------------------------------------------------------
 
-  using input_t = merge_input<T>;
-
   using input_key = size_t;
 
-  using input_ptr = std::unique_ptr<input_t>;
+  using input_map = std::map<input_key, merge_input<T>>;
 
-  using input_map = unordered_flat_map<input_key, input_ptr>;
+  using input_map_iterator = typename input_map::iterator;
+
+  // -- constants --------------------------------------------------------------
+
+  /// Limits how many items the merge operator pulls in per input. This is
+  /// deliberately small to make sure that we get reasonably small "batches" of
+  /// items per input to make sure all inputs get their turn.
+  static constexpr size_t default_max_pending_per_input = 8;
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  merge_sub(coordinator* ctx, observer<T> out)
-    : ctx_(ctx), out_(std::move(out)) {
+  merge_sub(coordinator* parent, observer<T> out, size_t max_concurrent,
+            size_t max_pending_per_input = default_max_pending_per_input)
+    : parent_(parent),
+      out_(std::move(out)),
+      max_concurrent_(max_concurrent),
+      max_pending_per_input_(max_pending_per_input) {
     // nop
   }
 
-  // -- input management -------------------------------------------------------
+  // -- implementation of observer_impl ----------------------------------------
 
-  void subscribe_to(observable<T> what) {
-    auto key = next_key_++;
-    inputs_.container().emplace_back(key, std::make_unique<input_t>());
-    using fwd_impl = forwarder<T, merge_sub, size_t>;
-    auto fwd = make_counted<fwd_impl>(this, key);
-    what.subscribe(fwd->as_observer());
+  coordinator* parent() const noexcept override {
+    return parent_;
   }
 
-  void subscribe_to(observable<observable<T>> what) {
+  void on_next(const observable<T>& what) override {
+    CAF_ASSERT(what);
+    if (!sub_)
+      return;
     auto key = next_key_++;
-    auto& vec = inputs_.container();
-    vec.emplace_back(key, std::make_unique<input_t>());
-    using fwd_impl = forwarder<observable<T>, merge_sub, size_t>;
-    auto fwd = make_counted<fwd_impl>(this, key);
-    what.subscribe(fwd->as_observer());
+    inputs_.emplace(key, merge_input<T>{});
+    using fwd_impl = forwarder<T, merge_sub, size_t>;
+    auto fwd = parent_->add_child(std::in_place_type<fwd_impl>, this, key);
+    what.pimpl()->subscribe(fwd->as_observer());
+  }
+
+  void on_error(const error& what) override {
+    sub_.release_later();
+    err_ = what;
+    stop_inputs();
+    if (out_ && inputs_.empty())
+      out_.on_error(what);
+  }
+
+  void on_complete() override {
+    sub_.release_later();
+    if (out_ && inputs_.empty() && buffered_ == 0)
+      out_.on_complete();
+  }
+
+  void on_subscribe(flow::subscription sub) override {
+    if (!sub_ && out_) {
+      sub_ = std::move(sub);
+      sub_.request(max_concurrent_);
+    } else {
+      sub.cancel();
+    }
+  }
+
+  // -- reference counting -----------------------------------------------------
+
+  void ref_coordinated() const noexcept final {
+    ref();
+  }
+
+  void deref_coordinated() const noexcept final {
+    deref();
+  }
+
+  friend void intrusive_ptr_add_ref(const merge_sub* ptr) noexcept {
+    ptr->ref();
+  }
+
+  friend void intrusive_ptr_release(const merge_sub* ptr) noexcept {
+    ptr->deref();
   }
 
   // -- callbacks for the forwarders -------------------------------------------
 
   void fwd_on_subscribe(input_key key, subscription sub) {
-    CAF_LOG_TRACE(CAF_ARG(key));
-    if (auto ptr = get(key); ptr && !ptr->sub && out_) {
-      sub.request(max_pending_);
+    if (auto ptr = get(key); ptr && !ptr->sub) {
       ptr->sub = std::move(sub);
+      ptr->sub.request(max_pending_per_input_);
     } else {
-      sub.dispose();
+      sub.cancel();
     }
   }
 
   void fwd_on_complete(input_key key) {
-    CAF_LOG_TRACE(CAF_ARG(key));
-    if (auto i = inputs_.find(key); i != inputs_.end()) {
-      if (i->second->buf.empty()) {
-        inputs_.erase(i);
-        run_later();
-      } else {
-        i->second->sub = nullptr;
-      }
+    auto i = inputs_.find(key);
+    if (i == inputs_.end())
+      return;
+    if (!i->second.buf.empty()) {
+      i->second.sub.release_later();
+      return;
     }
+    inputs_.erase(i);
+    if (sub_) {
+      sub_.request(1);
+      return;
+    }
+    if (inputs_.empty())
+      out_.on_complete();
   }
 
   void fwd_on_error(input_key key, const error& what) {
-    CAF_LOG_TRACE(CAF_ARG(key) << CAF_ARG(what));
-    if (!err_) {
-      err_ = what;
-      if (!flags_.delay_error) {
-        auto i = inputs_.begin();
-        while (i != inputs_.end()) {
-          auto& input = *i->second;
-          if (auto& sub = input.sub) {
-            sub.dispose();
-            sub = nullptr;
-          }
-          if (input.buf.empty())
-            i = inputs_.erase(i);
-          else
-            ++i;
-        }
-      }
-    }
-    fwd_on_complete(key);
+    if (err_)
+      return;
+    auto i = inputs_.find(key);
+    if (i == inputs_.end())
+      return;
+    err_ = what;
+    stop_inputs();
+    if (inputs_.empty())
+      out_.on_error(what);
   }
 
   void fwd_on_next(input_key key, const T& item) {
-    CAF_LOG_TRACE(CAF_ARG(key) << CAF_ARG(item));
     if (auto ptr = get(key)) {
-      if (!flags_.running && demand_ > 0) {
+      if (!this->is_pulling() && demand_ > 0) {
         CAF_ASSERT(out_.valid());
         --demand_;
+        if (ptr->sub)
+          ptr->sub.request(1);
         out_.on_next(item);
-        ptr->sub.request(1);
       } else {
+        ++buffered_;
         ptr->buf.push_back(item);
       }
-    }
-  }
-
-  void fwd_on_next(input_key key, const observable<T>& item) {
-    CAF_LOG_TRACE(CAF_ARG(key) << CAF_ARG(item));
-    if (auto ptr = get(key)) {
-      subscribe_to(item);
-      ptr->sub.request(1);
     }
   }
 
@@ -142,125 +194,158 @@ public:
     return !out_;
   }
 
-  void dispose() override {
-    if (out_) {
-      for (auto& kvp : inputs_)
-        if (auto& sub = kvp.second->sub)
-          sub.dispose();
-      inputs_.clear();
-      run_later();
-    }
+  void request(size_t n) override {
+    if (!out_)
+      return;
+    if (buffered_ == 0)
+      demand_ += n;
+    else
+      this->pull(parent_, n);
   }
 
-  void request(size_t n) override {
-    CAF_ASSERT(out_.valid());
-    demand_ += n;
-    if (demand_ == n)
-      run_later();
-  }
+  // -- properties -------------------------------------------------------------
 
   size_t buffered() const noexcept {
-    return std::accumulate(inputs_.begin(), inputs_.end(), size_t{0},
-                           [](size_t n, auto& kvp) {
-                             return n + kvp.second->buf.size();
-                           });
+    return buffered_;
+  }
+
+  size_t demand() const noexcept {
+    return demand_;
+  }
+
+  size_t num_inputs() const noexcept {
+    return inputs_.size();
+  }
+
+  bool subscribed() const noexcept {
+    return sub_.valid();
+  }
+
+  size_t max_concurrent() const noexcept {
+    return max_concurrent_;
   }
 
 private:
-  void run_later() {
-    if (!flags_.running) {
-      flags_.running = true;
-      ctx_->delay_fn([strong_this = intrusive_ptr<merge_sub>{this}] {
-        strong_this->do_run();
-      });
-    }
+  // -- implementation of subscription::impl_base ------------------------------
+
+  void do_dispose(bool from_external) override {
+    if (!out_)
+      return;
+    input_map xs;
+    xs.swap(inputs_);
+    for (auto& kvp : xs)
+      kvp.second.sub.cancel();
+    sub_.cancel();
+    if (from_external)
+      out_.on_error(make_error(sec::disposed));
+    else
+      out_.release_later();
   }
 
-  auto next_input() {
-    CAF_ASSERT(!inputs_.empty());
-    auto has_items_at = [this](size_t pos) {
-      auto& vec = inputs_.container();
-      return !vec[pos].second->buf.empty();
-    };
-    auto start = pos_ % inputs_.size();
-    pos_ = (pos_ + 1) % inputs_.size();
-    if (has_items_at(start))
-      return inputs_.begin() + start;
-    while (pos_ != start) {
-      auto p = pos_;
-      pos_ = (pos_ + 1) % inputs_.size();
-      if (has_items_at(p))
-        return inputs_.begin() + p;
-    }
-    return inputs_.end();
-  }
+  // -- implementation of pullable ---------------------------------------------
 
-  void do_run() {
-    while (out_ && demand_ > 0 && !inputs_.empty()) {
-      if (auto i = next_input(); i != inputs_.end()) {
-        --demand_;
-        auto& buf = i->second->buf;
-        auto tmp = std::move(buf.front());
-        buf.pop_front();
-        if (auto& sub = i->second->sub) {
-          sub.request(1);
-        } else if (buf.empty()) {
-          inputs_.erase(i);
-        }
-        out_.on_next(tmp);
-      } else {
-        break;
+  void do_pull(size_t n) override {
+    demand_ += n;
+    auto i = next();
+    if (i == inputs_.end())
+      return;
+    auto old_pos = pos_;
+    while (out_ && demand_ > 0 && buffered_ > 0) {
+      // Fetch the next item.
+      auto item = i->second.pop();
+      --demand_;
+      --buffered_;
+      // Request a new item from the input if we still have a subscription.
+      // Otherwise, drop this input if we have exhausted all items.
+      if (i->second.sub) {
+        i->second.sub.request(1);
+        if (i->second.buf.empty() && buffered_ > 0)
+          i = next();
+      } else if (i->second.buf.empty()) {
+        i = inputs_.erase(i);
+        if (sub_)
+          sub_.request(1);
+        if (buffered_ > 0)
+          i = next();
       }
+      // Call the observer. This might nuke out_ by calling dispose().
+      out_.on_next(item);
     }
-    if (out_ && inputs_.empty())
-      fin();
-    flags_.running = false;
+    // Make sure we don't get stuck on a single input.
+    if (pos_ == old_pos)
+      ++pos_;
+    // Check if we can call it a day.
+    if (out_ && done()) {
+      if (!err_)
+        out_.on_complete();
+      else
+        out_.on_error(err_);
+    }
   }
 
-  void fin() {
-    if (!inputs_.empty()) {
-      for (auto& kvp : inputs_)
-        if (auto& sub = kvp.second->sub)
-          sub.dispose();
-      inputs_.clear();
-    }
-    if (!err_) {
-      out_.on_complete();
-    } else {
-      out_.on_error(err_);
-    }
-    out_ = nullptr;
+  void do_ref() override {
+    this->ref();
   }
 
-  /// Selects an input object by key or returns null.
-  input_t* get(input_key key) {
+  void do_deref() override {
+    this->deref();
+  }
+
+  void stop_inputs() {
+    auto i = inputs_.begin();
+    while (i != inputs_.end()) {
+      i->second.sub.cancel();
+      if (i->second.buf.empty())
+        i = inputs_.erase(i);
+      else
+        ++i;
+    }
+    sub_.cancel();
+  }
+
+  bool done() const noexcept {
+    return !sub_ && inputs_.empty();
+  }
+
+  /// Selects an input subscription by key or returns null.
+  merge_input<T>* get(input_key key) {
     if (auto i = inputs_.find(key); i != inputs_.end())
-      return i->second.get();
+      return std::addressof(i->second);
     else
       return nullptr;
   }
 
-  /// Groups various Boolean flags.
-  struct flags_t {
-    /// Configures whether an error immediately aborts the merging or not.
-    bool delay_error : 1;
+  input_map_iterator select_non_empty(input_map_iterator first,
+                                      input_map_iterator last) {
+    auto non_empty = [](const auto& kvp) { return !kvp.second.buf.empty(); };
+    return std::find_if(first, last, non_empty);
+  }
 
-    /// Stores whether the merge is currently executing do_run.
-    bool running : 1;
-
-    flags_t() : delay_error(false), running(false) {
-      // nop
+  /// Selects an input subscription by key or returns null.
+  input_map_iterator next() {
+    if (inputs_.empty())
+      return inputs_.end();
+    input_map_iterator result;
+    if (auto i = inputs_.lower_bound(pos_); i != inputs_.end()) {
+      result = select_non_empty(i, inputs_.end());
+      if (result == inputs_.end())
+        result = select_non_empty(inputs_.begin(), i);
+    } else {
+      result = select_non_empty(inputs_.begin(), inputs_.end());
     }
-  };
+    if (result != inputs_.end())
+      pos_ = result->first;
+    return result;
+  }
 
   /// Stores the context (coordinator) that runs this flow.
-  coordinator* ctx_;
+  coordinator* parent_;
 
   /// Stores the first error that occurred on any input.
   error err_;
 
-  /// Fine-tunes the behavior of the merge.
-  flags_t flags_;
+  /// Subscription to the pre-merger that produces the input observables.
+  subscription sub_;
 
   /// Stores our current demand for items from the subscriber.
   size_t demand_ = 0;
@@ -268,17 +353,23 @@ private:
   /// Stores a handle to the subscriber.
   observer<T> out_;
 
-  /// Stores the last round-robin read position.
-  size_t pos_ = 0;
-
   /// Associates inputs with ascending keys.
   input_map inputs_;
 
   /// Stores the key for the next input.
-  size_t next_key_ = 0;
+  size_t next_key_ = 1;
+
+  /// Stores the key for the next item.
+  size_t pos_ = 1;
+
+  /// Stores how many items are buffered in total.
+  size_t buffered_ = 0;
 
   /// Configures how many items we buffer per input.
-  size_t max_pending_ = defaults::flow::buffer_size;
+  size_t max_concurrent_;
+
+  /// Configures how many items we have pending per input at most.
+  size_t max_pending_per_input_;
 };
 
 template <class T>
@@ -288,50 +379,44 @@ public:
 
   using super = cold<T>;
 
-  using input_type = std::variant<observable<T>, observable<observable<T>>>;
-
   // -- constructors, destructors, and assignment operators --------------------
 
-  template <class... Ts, class... Inputs>
-  explicit merge(coordinator* ctx, Inputs&&... inputs) : super(ctx) {
-    (add(std::forward<Inputs>(inputs)), ...);
+  template <class... Inputs>
+  merge(coordinator* parent, observable<T> input0, observable<T> input1,
+        Inputs... inputs)
+    : super(parent) {
+    static_assert((std::is_same_v<observable<T>, Inputs> && ...));
+    using vector_t = std::vector<observable<T>>;
+    using gen_t = gen::from_container<vector_t>;
+    using obs_t = from_generator<gen::from_container<vector_t>>;
+    auto xs = vector_t{};
+    xs.reserve(sizeof...(Inputs) + 2);
+    xs.emplace_back(std::move(input0));
+    xs.emplace_back(std::move(input1));
+    (xs.emplace_back(std::move(inputs)), ...);
+    inputs_ = super::parent_->add_child(std::in_place_type<obs_t>,
+                                        gen_t{std::move(xs)}, std::tuple{});
   }
 
-  // -- properties -------------------------------------------------------------
-
-  size_t inputs() const noexcept {
-    return inputs_.size();
+  merge(coordinator* parent, observable<observable<T>> inputs)
+    : super(parent), inputs_(std::move(inputs)) {
+    // nop
   }
 
   // -- implementation of observable_impl<T> -----------------------------------
 
   disposable subscribe(observer<T> out) override {
-    if (inputs() == 0) {
-      auto ptr = make_counted<empty<T>>(super::ctx_);
-      return ptr->subscribe(std::move(out));
-    } else {
-      auto sub = make_counted<merge_sub<T>>(super::ctx_, out);
-      for (auto& input : inputs_)
-        std::visit([&sub](auto& in) { sub->subscribe_to(in); }, input);
-      out.on_subscribe(subscription{sub});
-      return sub->as_disposable();
-    }
+    auto sub = super::parent_->add_child(std::in_place_type<merge_sub<T>>, out,
+                                         max_concurrent_);
+    inputs_.subscribe(sub->as_observer());
+    out.on_subscribe(subscription{sub});
+    return sub->as_disposable();
   }
 
 private:
-  template <class Input>
-  void add(Input&& x) {
-    using input_t = std::decay_t<Input>;
-    if constexpr (detail::is_iterable_v<input_t>) {
-      for (auto& in : x)
-        add(in);
-    } else {
-      static_assert(is_observable_v<input_t>);
-      inputs_.emplace_back(std::forward<Input>(x).as_observable());
-    }
-  }
+  observable<observable<T>> inputs_;
 
-  std::vector<input_type> inputs_;
+  size_t max_concurrent_ = defaults::flow::max_concurrent;
 };
 
 } // namespace caf::flow::op

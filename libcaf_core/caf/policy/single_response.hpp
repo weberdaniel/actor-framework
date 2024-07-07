@@ -1,13 +1,12 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
 #include "caf/behavior.hpp"
 #include "caf/config.hpp"
 #include "caf/detail/dispose_on_call.hpp"
-#include "caf/detail/type_list.hpp"
 #include "caf/detail/type_traits.hpp"
 #include "caf/detail/typed_actor_util.hpp"
 #include "caf/disposable.hpp"
@@ -42,7 +41,8 @@ public:
     using detail::dispose_on_call;
     behavior bhvr{dispose_on_call(pending_timeout_, std::forward<F>(f)),
                   dispose_on_call(pending_timeout_, std::forward<OnError>(g))};
-    self->add_awaited_response_handler(mid_, std::move(bhvr));
+    self->add_awaited_response_handler(mid_, std::move(bhvr),
+                                       std::move(pending_timeout_));
   }
 
   template <class Self, class F, class OnError>
@@ -50,7 +50,8 @@ public:
     using detail::dispose_on_call;
     behavior bhvr{dispose_on_call(pending_timeout_, std::forward<F>(f)),
                   dispose_on_call(pending_timeout_, std::forward<OnError>(g))};
-    self->add_multiplexed_response_handler(mid_, std::move(bhvr));
+    self->add_multiplexed_response_handler(mid_, std::move(bhvr),
+                                           std::move(pending_timeout_));
   }
 
   template <class Self, class F, class OnError>

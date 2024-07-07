@@ -1,13 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <algorithm>
-#include <initializer_list>
-#include <memory>
-#include <mutex>
 
 #include "caf/span.hpp"
 #include "caf/telemetry/label.hpp"
@@ -15,6 +10,11 @@
 #include "caf/telemetry/metric.hpp"
 #include "caf/telemetry/metric_family.hpp"
 #include "caf/telemetry/metric_impl.hpp"
+
+#include <algorithm>
+#include <initializer_list>
+#include <memory>
+#include <mutex>
 
 namespace caf::telemetry {
 
@@ -64,7 +64,7 @@ public:
       std::vector<label> cpy{labels.begin(), labels.end()};
       std::sort(cpy.begin(), cpy.end());
       std::unique_ptr<impl_type> ptr;
-      if constexpr (std::is_same<extra_setting_type, unit_t>::value)
+      if constexpr (std::is_same_v<extra_setting_type, unit_t>)
         ptr.reset(new impl_type(std::move(cpy)));
       else
         ptr.reset(new impl_type(std::move(cpy), config_, extra_setting_));

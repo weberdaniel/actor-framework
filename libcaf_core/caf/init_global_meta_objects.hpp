@@ -1,13 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <utility>
 
 #include "caf/detail/core_export.hpp"
 #include "caf/detail/make_meta_object.hpp"
@@ -15,6 +10,11 @@
 #include "caf/fwd.hpp"
 #include "caf/span.hpp"
 #include "caf/type_id.hpp"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
 
 namespace caf::detail {
 
@@ -35,9 +35,15 @@ struct type_id_sequence_helper<type_id_pair<Begin, End>, Is...> {
                                                 Is..., Begin>::type;
 };
 
+/// Convenience alias for `type_id_sequence_helper<class Range,
+/// uint16_t...>::type`.
+template <class Range, uint16_t... Is>
+using type_id_sequence_helper_t =
+  typename type_id_sequence_helper<Range, Is...>::type;
+
 template <class Range>
-using make_type_id_sequence = typename type_id_sequence_helper<
-  type_id_pair<Range::begin, Range::end>>::type;
+using make_type_id_sequence
+  = type_id_sequence_helper_t<type_id_pair<Range::begin, Range::end>>;
 
 } // namespace caf::detail
 

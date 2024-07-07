@@ -1,26 +1,26 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <cstddef>
+#include "caf/detail/comparable.hpp"
+#include "caf/intrusive_ptr.hpp"
+
 #include <algorithm>
+#include <cstddef>
 #include <stdexcept>
 #include <type_traits>
-
-#include "caf/intrusive_ptr.hpp"
-#include "caf/detail/comparable.hpp"
 
 namespace caf {
 
 /// An intrusive, reference counting smart pointer implementation.
 /// @relates ref_counted
 template <class T>
-class weak_intrusive_ptr : detail::comparable<weak_intrusive_ptr<T>>,
-                           detail::comparable<weak_intrusive_ptr<T>, const T*>,
-                           detail::comparable<weak_intrusive_ptr<T>,
-                                              std::nullptr_t> {
+class weak_intrusive_ptr
+  : detail::comparable<weak_intrusive_ptr<T>>,
+    detail::comparable<weak_intrusive_ptr<T>, const T*>,
+    detail::comparable<weak_intrusive_ptr<T>, std::nullptr_t> {
 public:
   using pointer = T*;
   using const_pointer = const T*;
@@ -40,7 +40,7 @@ public:
   }
 
   weak_intrusive_ptr(weak_intrusive_ptr&& other) noexcept
-      : ptr_(other.detach()) {
+    : ptr_(other.detach()) {
     // nop
   }
 
@@ -50,9 +50,8 @@ public:
 
   template <class Y>
   weak_intrusive_ptr(weak_intrusive_ptr<Y> other) noexcept
-      : ptr_(other.detach()) {
-    static_assert(std::is_convertible<Y*, T*>::value,
-                  "Y* is not assignable to T*");
+    : ptr_(other.detach()) {
+    static_assert(std::is_convertible_v<Y*, T*>, "Y* is not assignable to T*");
   }
 
   ~weak_intrusive_ptr() {

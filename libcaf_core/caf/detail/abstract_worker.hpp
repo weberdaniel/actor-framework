@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
@@ -25,11 +25,11 @@ public:
 
   // -- implementation of resumable --------------------------------------------
 
-  subtype_t subtype() const override;
+  subtype_t subtype() const noexcept final;
 
-  void intrusive_ptr_add_ref_impl() override;
+  void ref_resumable() const noexcept final;
 
-  void intrusive_ptr_release_impl() override;
+  void deref_resumable() const noexcept final;
 
 private:
   // -- member variables -------------------------------------------------------

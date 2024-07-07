@@ -1,20 +1,21 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <vector>
-
-#include "caf/byte_buffer.hpp"
-#include "caf/detail/io_export.hpp"
 #include "caf/io/fwd.hpp"
 #include "caf/io/network/event_handler.hpp"
 #include "caf/io/network/rw_state.hpp"
 #include "caf/io/network/stream_manager.hpp"
 #include "caf/io/receive_policy.hpp"
-#include "caf/logger.hpp"
+
+#include "caf/byte_buffer.hpp"
+#include "caf/detail/io_export.hpp"
+#include "caf/log/io.hpp"
 #include "caf/ref_counted.hpp"
+
+#include <vector>
 
 namespace caf::io::network {
 
@@ -73,7 +74,7 @@ public:
 protected:
   template <class Policy>
   void handle_event_impl(io::network::operation op, Policy& policy) {
-    CAF_LOG_TRACE(CAF_ARG(op));
+    auto lg = log::io::trace("op = {}", op);
     switch (op) {
       case io::network::operation::read: {
         // Loop until an error occurs or we have nothing more to read

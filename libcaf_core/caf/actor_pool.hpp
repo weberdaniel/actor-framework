@@ -1,20 +1,17 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
 
-#include <functional>
-#include <vector>
-
 #include "caf/actor.hpp"
 #include "caf/detail/core_export.hpp"
-#include "caf/detail/shared_spinlock.hpp"
 #include "caf/detail/split_join.hpp"
-#include "caf/execution_unit.hpp"
-#include "caf/locks.hpp"
 #include "caf/mailbox_element.hpp"
-#include "caf/monitorable_actor.hpp"
+
+#include <functional>
+#include <mutex>
+#include <vector>
 
 namespace caf {
 
@@ -40,13 +37,14 @@ namespace caf {
 /// messages with as little overhead as possible, because the dispatching
 /// runs in the context of the sender.
 /// @experimental
-class CAF_CORE_EXPORT actor_pool : public monitorable_actor {
+class CAF_CORE_EXPORT actor_pool : public abstract_actor {
 public:
-  using uplock = upgrade_lock<detail::shared_spinlock>;
   using actor_vec = std::vector<actor>;
   using factory = std::function<actor()>;
-  using policy = std::function<void(actor_system&, uplock&, const actor_vec&,
-                                    mailbox_element_ptr&, execution_unit*)>;
+  using guard_type = std::unique_lock<std::mutex>;
+  using policy
+    = std::function<void(actor_system&, guard_type&, const actor_vec&,
+                         mailbox_element_ptr&, scheduler*)>;
 
   /// Returns a simple round robin dispatching policy.
   static policy round_robin();
@@ -78,18 +76,20 @@ public:
   ~actor_pool() override;
 
   /// Returns an actor pool without workers using the dispatch policy `pol`.
-  static actor make(execution_unit* eu, policy pol);
+  [[deprecated("actor pools will be removed in the next major release")]]
+  static actor make(actor_system& sys, policy pol);
 
   /// Returns an actor pool with `n` workers created by the factory
   /// function `fac` using the dispatch policy `pol`.
+  [[deprecated("actor pools will be removed in the next major release")]]
   static actor
-  make(execution_unit* eu, size_t num_workers, const factory& fac, policy pol);
+  make(actor_system& sys, size_t num_workers, const factory& fac, policy pol);
 
-  bool enqueue(mailbox_element_ptr what, execution_unit* eu) override;
+  bool enqueue(mailbox_element_ptr what, scheduler* sched) override;
 
   actor_pool(actor_config& cfg);
 
-  void on_destroy() override;
+  const char* name() const override;
 
   void setup_metrics() {
     // nop
@@ -99,14 +99,15 @@ protected:
   void on_cleanup(const error& reason) override;
 
 private:
-  bool filter(upgrade_lock<detail::shared_spinlock>&,
-              const strong_actor_ptr& sender, message_id mid, message& msg,
-              execution_unit* eu);
+  bool filter(guard_type&, const strong_actor_ptr& sender, message_id mid,
+              message& msg, scheduler* sched);
 
   // call without workers_mtx_ held
-  void quit(execution_unit* host);
+  void quit(scheduler* sched);
 
-  detail::shared_spinlock workers_mtx_;
+  void force_close_mailbox() override;
+
+  std::mutex workers_mtx_;
   std::vector<actor> workers_;
   policy policy_;
   exit_reason planned_reason_;

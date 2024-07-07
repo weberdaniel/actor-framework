@@ -1,11 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <memory>
-#include <string_view>
 
 #include "caf/config_option.hpp"
 #include "caf/config_value.hpp"
@@ -15,21 +12,21 @@
 #include "caf/fwd.hpp"
 #include "caf/pec.hpp"
 
+#include <memory>
+#include <string_view>
+
 namespace caf::detail {
 
 template <class T>
 error sync_impl(void* ptr, config_value& x) {
-  if (auto val = get_as<T>(x)) {
-    if (auto err = x.assign(*val); !err) {
-      if (ptr)
-        *static_cast<T*>(ptr) = std::move(*val);
-      return none;
-    } else {
-      return err;
-    }
-  } else {
+  auto val = get_as<T>(x);
+  if (!val)
     return std::move(val.error());
-  }
+  if (auto err = x.assign(*val))
+    return err;
+  if (ptr)
+    *static_cast<T*>(ptr) = std::move(*val);
+  return {};
 }
 
 template <class T>
@@ -67,12 +64,5 @@ config_option make_config_option(T& storage, std::string_view category,
   return {category, name, description, detail::option_meta_state_instance<T>(),
           std::addressof(storage)};
 }
-
-// -- backward compatibility, do not use for new code ! ------------------------
-
-// Inverts the value when writing to `storage`.
-CAF_CORE_EXPORT config_option
-make_negated_config_option(bool& storage, std::string_view category,
-                           std::string_view name, std::string_view description);
 
 } // namespace caf

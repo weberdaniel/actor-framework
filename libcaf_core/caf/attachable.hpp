@@ -1,28 +1,28 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/detail/core_export.hpp"
+#include "caf/error.hpp"
+#include "caf/exit_reason.hpp"
+#include "caf/fwd.hpp"
+#include "caf/message_priority.hpp"
 
 #include <cstdint>
 #include <memory>
 #include <typeinfo>
 
-#include "caf/detail/core_export.hpp"
-#include "caf/error.hpp"
-#include "caf/execution_unit.hpp"
-#include "caf/exit_reason.hpp"
-
 namespace caf {
 
-class abstract_actor;
+/// @relates attachable
+using attachable_ptr = std::unique_ptr<attachable>;
 
 /// Callback utility class.
 class CAF_CORE_EXPORT attachable {
 public:
-  attachable() = default;
-  attachable(const attachable&) = delete;
-  attachable& operator=(const attachable&) = delete;
+  // -- member types -----------------------------------------------------------
 
   /// Represents a pointer to a value with its subtype as type ID number.
   struct token {
@@ -34,9 +34,6 @@ public:
 
     /// Identifies `default_attachable::observe_token`.
     static constexpr size_t observer = 2;
-
-    /// Identifies `stream_aborter::token`.
-    static constexpr size_t stream_aborter = 3;
 
     template <class T>
     token(const T& tk) : subtype(T::token_type), ptr(&tk) {
@@ -52,12 +49,20 @@ public:
     token(size_t typenr, const void* vptr);
   };
 
+  // -- constructors and destructors -------------------------------------------
+
+  attachable() = default;
+  attachable(const attachable&) = delete;
+  attachable& operator=(const attachable&) = delete;
+
   virtual ~attachable();
+
+  // -- interface for the actor ------------------------------------------------
 
   /// Executed if the actor finished execution with given `reason`.
   /// The default implementation does nothing.
   /// @warning `host` can be `nullptr`
-  virtual void actor_exited(const error& fail_state, execution_unit* host);
+  virtual void actor_exited(const error& fail_state, scheduler* sched);
 
   /// Returns `true` if `what` selects this instance, otherwise `false`.
   virtual bool matches(const token& what);
@@ -68,10 +73,9 @@ public:
     return matches(token{T::token_type, &what});
   }
 
-  std::unique_ptr<attachable> next;
-};
+  // -- member variables -------------------------------------------------------
 
-/// @relates attachable
-using attachable_ptr = std::unique_ptr<attachable>;
+  attachable_ptr next;
+};
 
 } // namespace caf

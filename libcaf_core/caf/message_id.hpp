@@ -1,12 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
-
-#include <cstdint>
-#include <functional>
-#include <string>
 
 #include "caf/config.hpp"
 #include "caf/detail/comparable.hpp"
@@ -14,6 +10,10 @@
 #include "caf/error.hpp"
 #include "caf/inspector_access.hpp"
 #include "caf/message_priority.hpp"
+
+#include <cstdint>
+#include <functional>
+#include <string>
 
 namespace caf {
 
@@ -102,6 +102,12 @@ public:
   /// Returns whether `category() == normal_message_category`.
   constexpr bool is_normal_message() const noexcept {
     return category() == normal_message_category;
+  }
+
+  /// Returns the priority part from the `category()`.
+  constexpr message_priority priority() const noexcept {
+    return is_urgent_message() ? message_priority::high
+                               : message_priority::normal;
   }
 
   /// Returns a response ID for the current request or an asynchronous ID with

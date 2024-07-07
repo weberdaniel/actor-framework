@@ -1,17 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
 
 #pragma once
+
+#include "caf/net/socket.hpp"
+#include "caf/net/socket_id.hpp"
+
+#include "caf/detail/net_export.hpp"
+#include "caf/fwd.hpp"
 
 #include <cstddef>
 #include <system_error>
 #include <utility>
-
-#include "caf/detail/net_export.hpp"
-#include "caf/fwd.hpp"
-#include "caf/net/socket.hpp"
-#include "caf/net/socket_id.hpp"
 
 // Note: This API mostly wraps platform-specific functions that return ssize_t.
 // We return ptrdiff_t instead, since only POSIX defines ssize_t and the two
