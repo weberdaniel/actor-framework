@@ -1,13 +1,5 @@
-// Simple HTTP/WebSocket server that sends predefined text snippets
-// (philosophers quotes) to the client. Clients may either ask for a single
-// quote via HTTP GET request or for all quotes of a selected philosopher by
-// connecting via WebSocket.
-
-#include "caf/net/http/with.hpp"
-#include "caf/net/middleman.hpp"
-#include "caf/net/ssl/context.hpp"
-#include "caf/net/web_socket/frame.hpp"
-#include "caf/net/web_socket/switch_protocol.hpp"
+// Simple WebSocket server that sends local files from a working directory to
+// the clients.
 
 #include "caf/actor_system.hpp"
 #include "caf/actor_system_config.hpp"
@@ -15,22 +7,21 @@
 #include "caf/cow_string.hpp"
 #include "caf/cow_tuple.hpp"
 #include "caf/event_based_actor.hpp"
+#include "caf/net/middleman.hpp"
+#include "caf/net/stream_transport.hpp"
+#include "caf/net/tcp_accept_socket.hpp"
+#include "caf/net/tcp_stream_socket.hpp"
+#include "caf/net/web_socket/accept.hpp"
 #include "caf/scheduled_actor/flow.hpp"
 #include "caf/span.hpp"
 
-#include <atomic>
 #include <cassert>
-#include <csignal>
-#include <random>
+#include <iostream>
 #include <utility>
 
 using namespace std::literals;
 
-// -- constants ----------------------------------------------------------------
-
 static constexpr uint16_t default_port = 8080;
-
-static constexpr size_t default_max_connections = 128;
 
 static constexpr std::string_view epictetus[] = {
   "Wealth consists not in having great possessions, but in having few wants.",
@@ -71,41 +62,24 @@ static constexpr std::string_view plato[] = {
   "Beauty lies in the eyes of the beholder.",
 };
 
-// -- configuration setup ------------------------------------------------------
-
-struct config : caf::actor_system_config {
-  config() {
-    opt_group{custom_options_, "global"} //
-      .add<uint16_t>("port,p", "port to listen for incoming connections")
-      .add<size_t>("max-connections,m", "limit for concurrent clients");
-    opt_group{custom_options_, "tls"} //
-      .add<std::string>("key-file,k", "path to the private key file")
-      .add<std::string>("cert-file,c", "path to the certificate file");
-  }
-
-  caf::settings dump_content() const override {
-    auto result = actor_system_config::dump_content();
-    caf::put_missing(result, "port", default_port);
-    caf::put_missing(result, "max-connections", default_max_connections);
-    return result;
-  }
-};
-
-// -- helper functions ---------------------------------------------------------
-
-// Returns a list of philosopher quotes by path.
-caf::span<const std::string_view> quotes_by_name(std::string_view path) {
-  if (path == "epictetus")
+caf::span<const std::string_view> quotes_by_path(std::string_view path) {
+  if (path == "/epictetus")
     return caf::make_span(epictetus);
-  else if (path == "seneca")
+  else if (path == "/seneca")
     return caf::make_span(seneca);
-  else if (path == "plato")
+  else if (path == "/plato")
     return caf::make_span(plato);
   else
     return {};
 }
 
-// Chooses a random quote from a list of quotes.
+struct config : caf::actor_system_config {
+  config() {
+    opt_group{custom_options_, "global"} //
+      .add<uint16_t>("port,p", "port to listen for incoming connections");
+  }
+};
+
 struct pick_random {
 public:
   pick_random() : engine_(std::random_device{}()) {
@@ -122,123 +96,51 @@ private:
   std::minstd_rand engine_;
 };
 
-std::string not_found_str(std::string_view name) {
-  auto result = "Name '"s;
-  result += name;
-  result += "' not found. Try 'epictetus', 'seneca' or 'plato'.";
-  return result;
-}
-
-// -- main ---------------------------------------------------------------------
-
-namespace {
-
-std::atomic<bool> shutdown_flag;
-
-void set_shutdown_flag(int) {
-  shutdown_flag = true;
-}
-
-} // namespace
-
 int caf_main(caf::actor_system& sys, const config& cfg) {
-  namespace http = caf::net::http;
-  namespace ssl = caf::net::ssl;
-  namespace ws = caf::net::web_socket;
-  // Do a regular shutdown for CTRL+C and SIGTERM.
-  signal(SIGTERM, set_shutdown_flag);
-  signal(SIGINT, set_shutdown_flag);
-  // Read the configuration.
+  namespace cn = caf::net;
+  namespace ws = cn::web_socket;
+  // Open up a TCP port for incoming connections.
   auto port = caf::get_or(cfg, "port", default_port);
-  auto pem = ssl::format::pem;
-  auto key_file = caf::get_as<std::string>(cfg, "tls.key-file");
-  auto cert_file = caf::get_as<std::string>(cfg, "tls.cert-file");
-  auto max_connections = caf::get_or(cfg, "max-connections",
-                                     default_max_connections);
-  if (!key_file != !cert_file) {
-    sys.println("*** inconsistent TLS config: declare neither file or both");
+  cn::tcp_accept_socket fd;
+  if (auto maybe_fd = cn::make_tcp_accept_socket({caf::ipv4_address{}, port},
+                                                 true)) {
+    std::cout << "*** started listening for incoming connections on port "
+              << port << '\n';
+    fd = std::move(*maybe_fd);
+  } else {
+    std::cerr << "*** unable to open port " << port << ": "
+              << to_string(maybe_fd.error()) << '\n';
     return EXIT_FAILURE;
   }
-  // Open up a TCP port for incoming connections and start the server.
-  auto server
-    = http::with(sys)
-        // Optionally enable TLS.
-        .context(ssl::context::enable(key_file && cert_file)
-                   .and_then(ssl::emplace_server(ssl::tls::v1_2))
-                   .and_then(ssl::use_private_key_file(key_file, pem))
-                   .and_then(ssl::use_certificate_file(cert_file, pem)))
-        // Bind to the user-defined port.
-        .accept(port)
-        // Limit how many clients may be connected at any given time.
-        .max_connections(max_connections)
-        // On "/quote/<arg>", we pick one random quote for the client.
-        .route("/quote/<arg>", http::method::get,
-               [](http::responder& res, std::string name) {
-                 auto quotes = quotes_by_name(name);
-                 if (quotes.empty()) {
-                   res.respond(http::status::not_found, "text/plain",
-                               not_found_str(name));
-                 } else {
-                   pick_random f;
-                   res.respond(http::status::ok, "text/plain", f(quotes));
-                 }
-               })
-        // --(rst-switch_protocol-begin)--
-        // On "/ws/quotes/<arg>", we switch the protocol to WebSocket.
-        .route("/ws/quotes/<arg>", http::method::get,
-               ws::switch_protocol()
-                 // Check that the client asks for a known philosopher.
-                 .on_request(
-                   [](ws::acceptor<caf::cow_string>& acc, std::string name) {
-                     auto quotes = quotes_by_name(name);
-                     if (quotes.empty()) {
-                       auto err = make_error(caf::sec::invalid_argument,
-                                             not_found_str(name));
-                       acc.reject(std::move(err));
-                     } else {
-                       // Forward the name to the WebSocket worker.
-                       acc.accept(caf::cow_string{std::move(name)});
-                     }
-                   })
-                 // Spawn a worker for the WebSocket clients.
-                 .on_start([&sys](auto events) {
-                   // Spawn a worker that reads from `events`.
-                   sys.spawn([events](caf::event_based_actor* self) {
-                     // Each WS connection has a pull/push buffer pair.
-                     self->make_observable()
-                       .from_resource(events) //
-                       .for_each([self](const auto& ev) mutable {
-                         // Forward the quotes to the client.
-                         auto [pull, push, name] = ev.data();
-                         auto quotes = quotes_by_name(name);
-                         self->make_observable()
-                           .from_container(quotes)
-                           .map([](std::string_view quote) {
-                             return ws::frame{quote};
-                           })
-                           .subscribe(push);
-                         // We ignore whatever the client may send to us.
-                         pull.observe_on(self).subscribe(std::ignore);
-                       });
-                   });
-                 }))
-        // --(rst-switch_protocol-end)--
-        .route("/status", http::method::get,
-               [](http::responder& res) {
-                 res.respond(http::status::no_content);
-               })
-        // Run with the configured routes.
-        .start();
-  // Report any error to the user.
-  if (!server) {
-    sys.println("*** unable to run at port {}: {}", port, server.error());
-    return EXIT_FAILURE;
-  }
-  // Wait for CTRL+C or SIGTERM.
-  while (!shutdown_flag)
-    std::this_thread::sleep_for(250ms);
-  sys.println("*** shutting down");
-  server->dispose();
+  // Convenience type aliases.
+  using event_t = ws::accept_event_t<caf::cow_string>;
+  // Create buffers to signal events from the WebSocket server to the worker.
+  auto [wres, sres] = ws::make_accept_event_resources<caf::cow_string>();
+  // Spin up a worker to handle the events.
+  auto worker = sys.spawn([worker_res = wres](caf::event_based_actor* self) {
+    // For each buffer pair, we create a new flow ...
+    self->make_observable()
+      .from_resource(worker_res)
+      .for_each([self, f = pick_random{}](const event_t& event) mutable {
+        // ... that pushes one random quote to the client.
+        auto [pull, push, path] = event.data();
+        auto quotes = quotes_by_path(path);
+        auto quote = quotes.empty() ? "Try /epictetus, /seneca or /plato."
+                                    : f(quotes);
+        self->make_observable().just(ws::frame{quote}).subscribe(push);
+        // We ignore whatever the client may send to us.
+        pull.observe_on(self).subscribe(std::ignore);
+      });
+  });
+  // Callback for incoming WebSocket requests.
+  auto on_request = [](const caf::settings& hdr, auto& req) {
+    // The hdr parameter is a dictionary with fields from the WebSocket
+    // handshake such as the path. This is only field we care about here.
+    auto path = caf::get_or(hdr, "web-socket.path", "/");
+    req.accept(caf::cow_string{std::move(path)});
+  };
+  // Set everything in motion.
+  ws::accept(sys, fd, std::move(sres), on_request);
   return EXIT_SUCCESS;
 }
 

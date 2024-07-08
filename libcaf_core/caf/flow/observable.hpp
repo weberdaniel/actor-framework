@@ -1,47 +1,37 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/async/batch.hpp"
 #include "caf/async/consumer.hpp"
 #include "caf/async/producer.hpp"
-#include "caf/async/publisher.hpp"
 #include "caf/async/spsc_buffer.hpp"
 #include "caf/cow_tuple.hpp"
 #include "caf/cow_vector.hpp"
 #include "caf/defaults.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/disposable.hpp"
 #include "caf/flow/coordinated.hpp"
 #include "caf/flow/coordinator.hpp"
 #include "caf/flow/fwd.hpp"
 #include "caf/flow/observable_decl.hpp"
+#include "caf/flow/observable_state.hpp"
 #include "caf/flow/observer.hpp"
 #include "caf/flow/op/base.hpp"
-#include "caf/flow/op/buffer.hpp"
 #include "caf/flow/op/concat.hpp"
 #include "caf/flow/op/from_resource.hpp"
 #include "caf/flow/op/from_steps.hpp"
-#include "caf/flow/op/interval.hpp"
 #include "caf/flow/op/merge.hpp"
-#include "caf/flow/op/never.hpp"
-#include "caf/flow/op/on_backpressure_buffer.hpp"
-#include "caf/flow/op/prefix_and_tail.hpp"
+#include "caf/flow/op/prefetch.hpp"
 #include "caf/flow/op/publish.hpp"
-#include "caf/flow/op/sample.hpp"
-#include "caf/flow/op/zip_with.hpp"
 #include "caf/flow/step/all.hpp"
 #include "caf/flow/subscription.hpp"
 #include "caf/intrusive_ptr.hpp"
-#include "caf/log/core.hpp"
+#include "caf/logger.hpp"
 #include "caf/make_counted.hpp"
 #include "caf/ref_counted.hpp"
 #include "caf/sec.hpp"
-#include "caf/stream.hpp"
-#include "caf/typed_stream.hpp"
 #include "caf/unordered_flat_map.hpp"
 
 #include <cstddef>
@@ -84,7 +74,7 @@ public:
   /// Returns an @ref observable that automatically connects to this
   /// `connectable` when reaching `subscriber_threshold` subscriptions.
   observable<T> auto_connect(size_t subscriber_threshold = 1) & {
-    auto ptr = make_counted<op::publish<T>>(parent(), pimpl_);
+    auto ptr = make_counted<op::publish<T>>(ctx(), pimpl_);
     ptr->auto_connect_threshold(subscriber_threshold);
     return observable<T>{ptr};
   }
@@ -96,7 +86,7 @@ public:
       pimpl_->auto_connect_threshold(subscriber_threshold);
       return observable<T>{std::move(pimpl_)};
     } else {
-      auto ptr = make_counted<op::publish<T>>(parent(), pimpl_);
+      auto ptr = make_counted<op::publish<T>>(ctx(), pimpl_);
       ptr->auto_connect_threshold(subscriber_threshold);
       return observable<T>{ptr};
     }
@@ -109,7 +99,7 @@ public:
   /// @note The threshold only applies to the initial connect, not to any
   ///       re-connects.
   observable<T> ref_count(size_t subscriber_threshold = 1) & {
-    auto ptr = make_counted<op::publish<T>>(parent(), pimpl_);
+    auto ptr = make_counted<op::publish<T>>(ctx(), pimpl_);
     ptr->auto_connect_threshold(subscriber_threshold);
     ptr->auto_disconnect(true);
     return observable<T>{ptr};
@@ -123,7 +113,7 @@ public:
       pimpl_->auto_disconnect(true);
       return observable<T>{std::move(pimpl_)};
     } else {
-      auto ptr = make_counted<op::publish<T>>(parent(), pimpl_);
+      auto ptr = make_counted<op::publish<T>>(ctx(), pimpl_);
       ptr->auto_connect_threshold(subscriber_threshold);
       ptr->auto_disconnect(true);
       return observable<T>{ptr};
@@ -175,8 +165,8 @@ public:
   }
 
   /// @pre `valid()`
-  coordinator* parent() const {
-    return pimpl_->parent();
+  coordinator* ctx() const {
+    return pimpl_->ctx();
   }
 
 private:
@@ -219,58 +209,14 @@ public:
     return fn(std::move(*this));
   }
 
-  /// @copydoc observable::element_at
-  auto element_at(size_t n) && {
-    return add_step(step::element_at<output_type>{n});
-  }
-
-  /// @copydoc observable::ignore_elements
-  auto ignore_elements() && {
-    return add_step(step::ignore_elements<output_type>{});
-  }
-
   /// @copydoc observable::skip
   auto skip(size_t n) && {
     return add_step(step::skip<output_type>{n});
   }
 
-  /// @copydoc observable::skip_last
-  auto skip_last(size_t n) && {
-    return add_step(step::skip_last<output_type>{n});
-  }
-
   /// @copydoc observable::take
   auto take(size_t n) && {
     return add_step(step::take<output_type>{n});
-  }
-
-  /// @copydoc observable::first
-  auto first() && {
-    return add_step(step::take<output_type>{1});
-  }
-
-  /// @copydoc observable::take_last
-  auto take_last(size_t n) && {
-    return add_step(step::take_last<output_type>{n});
-  }
-
-  /// @copydoc observable::last
-  auto last() && {
-    return add_step(step::take_last<output_type>{1});
-  }
-
-  /// @copydoc observable::buffer
-  auto buffer(size_t count) && {
-    return materialize().buffer(count);
-  }
-
-  auto buffer(size_t count, timespan period) {
-    return materialize().buffer(count, period);
-  }
-
-  /// @copydoc observable::sample
-  auto sample(timespan period) {
-    return materialize().sample(period);
   }
 
   template <class Predicate>
@@ -288,13 +234,6 @@ public:
     using val_t = output_type;
     static_assert(std::is_invocable_r_v<Init, Reducer, Init&&, const val_t&>);
     return add_step(step::reduce<Reducer>{std::move(init), std::move(reducer)});
-  }
-
-  template <class Init, class Scanner>
-  auto scan(Init init, Scanner scanner) && {
-    using val_t = output_type;
-    static_assert(std::is_invocable_r_v<Init, Scanner, Init&&, const val_t&>);
-    return add_step(step::scan<Scanner>{std::move(init), std::move(scanner)});
   }
 
   auto sum() && {
@@ -341,25 +280,8 @@ public:
     return add_step(step::do_finally<output_type, F>{std::move(f)});
   }
 
-  /// @copydoc observable::on_backpressure_buffer
-  auto on_backpressure_buffer(size_t buffer_size,
-                              backpressure_overflow_strategy strategy
-                              = backpressure_overflow_strategy::fail) {
-    return materialize().on_backpressure_buffer(buffer_size, strategy);
-  }
-
   auto on_error_complete() {
     return add_step(step::on_error_complete<output_type>{});
-  }
-
-  auto on_error_return_item(output_type item) {
-    return add_step(step::on_error_return_item<output_type>{std::move(item)});
-  }
-
-  template <class ErrorHandler>
-  auto on_error_return(ErrorHandler error_handler) && {
-    return add_step(
-      step::on_error_return<ErrorHandler>{std::move(error_handler)});
   }
 
   /// Materializes the @ref observable.
@@ -371,12 +293,6 @@ public:
   template <class OnNext>
   auto for_each(OnNext on_next) && {
     return materialize().for_each(std::move(on_next));
-  }
-
-  /// @copydoc observable::for_each
-  template <class OnNext, class OnError>
-  auto for_each(OnNext on_next, OnError on_error) && {
-    return materialize().for_each(std::move(on_next), std::move(on_error));
   }
 
   /// @copydoc observable::merge
@@ -391,12 +307,6 @@ public:
     return materialize().concat(std::forward<Inputs>(xs)...);
   }
 
-  /// @copydoc observable::start_with
-  template <class Input>
-  auto start_with(Input&& value) && {
-    return materialize().start_with(std::forward<Input>(value));
-  }
-
   /// @copydoc observable::flat_map
   template <class F>
   auto flat_map(F f) && {
@@ -407,13 +317,6 @@ public:
   template <class F>
   auto concat_map(F f) && {
     return materialize().concat_map(std::move(f));
-  }
-
-  /// @copydoc observable::zip_with
-  template <class F, class T0, class... Ts>
-  auto zip_with(F fn, T0 input0, Ts... inputs) {
-    return materialize().zip_with(std::move(fn), std::move(input0),
-                                  std::move(inputs)...);
   }
 
   /// @copydoc observable::publish
@@ -453,43 +356,6 @@ public:
   async::consumer_resource<output_type>
   to_resource(size_t buffer_size, size_t min_request_size) && {
     return materialize().to_resource(buffer_size, min_request_size);
-  }
-
-  /// @copydoc observable::to_publisher
-  async::publisher<output_type> to_publisher() && {
-    return materialize().to_publisher();
-  }
-
-  /// @copydoc observable::to_stream
-  template <class U = output_type>
-  stream to_stream(cow_string name, timespan max_delay,
-                   size_t max_items_per_batch) && {
-    return materialize().template to_stream<U>(std::move(name), max_delay,
-                                               max_items_per_batch);
-  }
-
-  /// @copydoc observable::to_stream
-  template <class U = output_type>
-  stream to_stream(std::string name, timespan max_delay,
-                   size_t max_items_per_batch) && {
-    return materialize().template to_stream<U>(std::move(name), max_delay,
-                                               max_items_per_batch);
-  }
-
-  /// @copydoc observable::to_typed_stream
-  template <class U = output_type>
-  auto to_typed_stream(cow_string name, timespan max_delay,
-                       size_t max_items_per_batch) && {
-    return materialize().template to_typed_stream<U>(std::move(name), max_delay,
-                                                     max_items_per_batch);
-  }
-
-  /// @copydoc observable::to_typed_stream
-  template <class U = output_type>
-  auto to_typed_stream(std::string name, timespan max_delay,
-                       size_t max_items_per_batch) && {
-    return materialize().template to_typed_stream<U>(std::move(name), max_delay,
-                                                     max_items_per_batch);
   }
 
   /// @copydoc observable::observe_on
@@ -560,15 +426,14 @@ public:
     return source_ != nullptr;
   }
 
-  coordinator* parent() {
-    return source_->parent();
+  coordinator* ctx() {
+    return source_->ctx();
   }
 
   template <class Step, class... Steps>
   auto materialize(std::tuple<Step, Steps...>&& steps) && {
     using impl_t = op::from_steps<Input, Step, Steps...>;
-    return parent()->add_child_hdl(std::in_place_type<impl_t>, source_,
-                                   std::move(steps));
+    return make_observable<impl_t>(ctx(), source_, std::move(steps));
   }
 
 private:
@@ -579,15 +444,12 @@ private:
 
 template <class T>
 disposable observable<T>::subscribe(observer<T> what) {
-  CAF_ASSERT(what.valid());
-  if (pimpl_)
+  if (pimpl_) {
     return pimpl_->subscribe(std::move(what));
-  auto* ptr = what.ptr()->parent();
-  auto sub = ptr->add_child(std::in_place_type<subscription::trivial_impl>);
-  what.on_subscribe(subscription{sub});
-  if (!sub->disposed())
+  } else {
     what.on_error(make_error(sec::invalid_observable));
-  return sub->as_disposable();
+    return disposable{};
+  }
 }
 
 template <class T>
@@ -595,44 +457,28 @@ disposable observable<T>::subscribe(async::producer_resource<T> resource) {
   using buffer_type = typename async::consumer_resource<T>::buffer_type;
   using adapter_type = buffer_writer_impl<buffer_type>;
   if (auto buf = resource.try_open()) {
-    log::core::debug("subscribe producer resource to flow");
-    auto adapter = make_counted<adapter_type>(pimpl_->parent());
-    adapter->init(buf);
+    CAF_LOG_DEBUG("subscribe producer resource to flow");
+    auto adapter = make_counted<adapter_type>(pimpl_->ctx(), buf);
+    buf->set_producer(adapter);
     auto obs = adapter->as_observer();
     auto sub = subscribe(std::move(obs));
-    pimpl_->parent()->watch(sub);
+    pimpl_->ctx()->watch(sub);
     return sub;
   } else {
-    log::core::debug("failed to open producer resource");
+    CAF_LOG_DEBUG("failed to open producer resource");
     return {};
   }
 }
 
 template <class T>
 disposable observable<T>::subscribe(ignore_t) {
-  return for_each([](const T&) {});
+  return subscribe(observer<T>::ignore());
 }
 
 template <class T>
 template <class OnNext>
 disposable observable<T>::for_each(OnNext on_next) {
-  static_assert(std::is_invocable_v<OnNext, const T&>,
-                "for_each: the on_next function must accept a 'const T&'");
-  using impl_type = detail::default_observer_impl<T, OnNext>;
-  auto ptr = parent()->add_child(std::in_place_type<impl_type>,
-                                 std::move(on_next));
-  return subscribe(observer<T>{std::move(ptr)});
-}
-
-template <class T>
-template <class OnNext, class OnError>
-disposable observable<T>::for_each(OnNext on_next, OnError on_error) {
-  static_assert(std::is_invocable_v<OnNext, const T&>,
-                "for_each: the on_next function must accept a 'const T&'");
-  using impl_type = detail::default_observer_impl<T, OnNext, OnError>;
-  auto ptr = parent()->add_child(std::in_place_type<impl_type>,
-                                 std::move(on_next), std::move(on_error));
-  return subscribe(observer<T>{std::move(ptr)});
+  return subscribe(make_observer(std::move(on_next)));
 }
 
 // -- observable: transforming -------------------------------------------------
@@ -696,28 +542,6 @@ transformation<step::on_error_complete<T>> observable<T>::on_error_complete() {
 }
 
 template <class T>
-observable<T>
-observable<T>::on_backpressure_buffer(size_t buffer_size,
-                                      backpressure_overflow_strategy strategy) {
-  using impl_t = op::on_backpressure_buffer<T>;
-  return parent()->add_child_hdl(std::in_place_type<impl_t>, *this, buffer_size,
-                                 strategy);
-}
-
-template <class T>
-template <class ErrorHandler>
-transformation<step::on_error_return<ErrorHandler>>
-observable<T>::on_error_return(ErrorHandler error_handler) {
-  return transform(step::on_error_return{std::move(error_handler)});
-}
-
-template <class T>
-transformation<step::on_error_return_item<T>>
-observable<T>::on_error_return_item(T item) {
-  return transform(step::on_error_return_item<T>{std::move(item)});
-}
-
-template <class T>
 template <class Init, class Reducer>
 transformation<step::reduce<Reducer>>
 observable<T>::reduce(Init init, Reducer reducer) {
@@ -726,51 +550,13 @@ observable<T>::reduce(Init init, Reducer reducer) {
 }
 
 template <class T>
-template <class Init, class Scanner>
-transformation<step::scan<Scanner>>
-observable<T>::scan(Init init, Scanner scanner) {
-  static_assert(std::is_invocable_r_v<Init, Scanner, Init&&, const T&>);
-  return transform(step::scan<Scanner>{std::move(init), std::move(scanner)});
-}
-
-template <class T>
-transformation<step::element_at<T>> observable<T>::element_at(size_t n) {
-  return transform(step::element_at<T>{n});
-}
-
-template <class T>
-transformation<step::ignore_elements<T>> observable<T>::ignore_elements() {
-  return transform(step::ignore_elements<T>{});
-}
-
-template <class T>
 transformation<step::skip<T>> observable<T>::skip(size_t n) {
   return transform(step::skip<T>{n});
 }
 
 template <class T>
-transformation<step::skip_last<T>> observable<T>::skip_last(size_t n) {
-  return transform(step::skip_last<T>{n});
-}
-
-template <class T>
 transformation<step::take<T>> observable<T>::take(size_t n) {
   return transform(step::take<T>{n});
-}
-
-template <class T>
-transformation<step::take<T>> observable<T>::first() {
-  return transform(step::take<T>{1});
-}
-
-template <class T>
-transformation<step::take_last<T>> observable<T>::take_last(size_t n) {
-  return transform(step::take_last<T>{n});
-}
-
-template <class T>
-transformation<step::take_last<T>> observable<T>::last() {
-  return transform(step::take_last<T>{1});
 }
 
 template <class T>
@@ -780,53 +566,21 @@ observable<T>::take_while(Predicate predicate) {
   return transform(step::take_while{std::move(predicate)});
 }
 
-template <class T>
-observable<cow_vector<T>> observable<T>::buffer(size_t count) {
-  using trait_t = op::buffer_default_trait<T>;
-  auto* pptr = parent();
-  auto obs = pptr->add_child_hdl(std::in_place_type<op::never<unit_t>>);
-  return pptr->add_child_hdl(std::in_place_type<op::buffer<trait_t>>, count,
-                             *this, std::move(obs));
-}
-
-template <class T>
-observable<cow_vector<T>> observable<T>::buffer(size_t count, timespan period) {
-  using trait_t = op::buffer_interval_trait<T>;
-  using impl_t = op::buffer<trait_t>;
-  auto* pptr = parent();
-  auto obs = pptr->add_child_hdl(std::in_place_type<op::interval>, period,
-                                 period);
-  return pptr->add_child_hdl(std::in_place_type<impl_t>, count, *this,
-                             std::move(obs));
-}
-
-template <class T>
-observable<T> observable<T>::sample(timespan period) {
-  using impl_t = op::sample<T>;
-  auto* pptr = parent();
-  auto obs = pptr->add_child_hdl(std::in_place_type<op::interval>, period,
-                                 period);
-  return pptr->add_child_hdl(std::in_place_type<impl_t>, *this, std::move(obs));
-}
-
 // -- observable: combining ----------------------------------------------------
 
 template <class T>
 template <class Out, class... Inputs>
 auto observable<T>::merge(Inputs&&... xs) {
   if constexpr (is_observable_v<Out>) {
-    static_assert(sizeof...(Inputs) == 0,
-                  "merge on an observable<observable<T>> allows no arguments");
     using value_t = output_type_t<Out>;
-    return parent()->add_child_hdl(std::in_place_type<op::merge<value_t>>,
-                                   *this);
+    using impl_t = op::merge<value_t>;
+    return make_observable<impl_t>(ctx(), *this, std::forward<Inputs>(xs)...);
   } else {
-    static_assert(sizeof...(Inputs) > 0, "no observable to merge with");
-    static_assert((std::is_same_v<Out, output_type_t<std::decay_t<Inputs>>>
-                   && ...),
-                  "can only merge observables with the same observed type");
-    return parent()->add_child_hdl(std::in_place_type<op::merge<Out>>, *this,
-                                   std::forward<Inputs>(xs).as_observable()...);
+    static_assert(
+      sizeof...(Inputs) > 0,
+      "merge without arguments expects this observable to emit observables");
+    using impl_t = op::merge<Out>;
+    return make_observable<impl_t>(ctx(), *this, std::forward<Inputs>(xs)...);
   }
 }
 
@@ -834,18 +588,15 @@ template <class T>
 template <class Out, class... Inputs>
 auto observable<T>::concat(Inputs&&... xs) {
   if constexpr (is_observable_v<Out>) {
-    static_assert(sizeof...(Inputs) == 0,
-                  "concat on an observable<observable<T>> allows no arguments");
     using value_t = output_type_t<Out>;
-    return parent()->add_child_hdl(std::in_place_type<op::concat<value_t>>,
-                                   *this);
+    using impl_t = op::concat<value_t>;
+    return make_observable<impl_t>(ctx(), *this, std::forward<Inputs>(xs)...);
   } else {
-    static_assert(sizeof...(Inputs) > 0, "no observable to concatenate");
     static_assert(
-      (std::is_same_v<Out, output_type_t<std::decay_t<Inputs>>> && ...),
-      "can only concatenate observables with the same observed type");
-    return parent()->add_child_hdl(std::in_place_type<op::concat<Out>>, *this,
-                                   std::forward<Inputs>(xs).as_observable()...);
+      sizeof...(Inputs) > 0,
+      "merge without arguments expects this observable to emit observables");
+    using impl_t = op::concat<Out>;
+    return make_observable<impl_t>(ctx(), *this, std::forward<Inputs>(xs)...);
   }
 }
 
@@ -868,7 +619,7 @@ auto observable<T>::flat_map(F f) {
     // all available immediately, there is no good reason to mess up the emitted
     // order of values.
     static_assert(detail::is_iterable_v<res_t>);
-    return map([cptr = parent(), fn = std::move(f)](const Out& x) mutable {
+    return map([cptr = ctx(), fn = std::move(f)](const Out& x) mutable {
              return cptr->make_observable().from_container(fn(x));
            })
       .concat();
@@ -890,23 +641,11 @@ auto observable<T>::concat_map(F f) {
       .map([](const res_t& x) { return *x; });
   } else {
     static_assert(detail::is_iterable_v<res_t>);
-    return map([cptr = parent(), fn = std::move(f)](const Out& x) mutable {
+    return map([cptr = ctx(), fn = std::move(f)](const Out& x) mutable {
              return cptr->make_observable().from_container(fn(x));
            })
       .concat();
   }
-}
-
-template <class T>
-template <class F, class T0, class... Ts>
-auto observable<T>::zip_with(F fn, T0 input0, Ts... inputs) {
-  using output_type = op::zip_with_output_t<F, T,                     //
-                                            typename T0::output_type, //
-                                            typename Ts::output_type...>;
-  if (pimpl_)
-    return op::make_zip_with(pimpl_->parent(), std::move(fn), *this,
-                             std::move(input0), std::move(inputs)...);
-  return observable<output_type>{};
 }
 
 // -- observable: splitting ----------------------------------------------------
@@ -914,19 +653,33 @@ auto observable<T>::zip_with(F fn, T0 input0, Ts... inputs) {
 template <class T>
 observable<cow_tuple<cow_vector<T>, observable<T>>>
 observable<T>::prefix_and_tail(size_t n) {
-  return parent()->add_child_hdl(std::in_place_type<op::prefix_and_tail<T>>,
-                                 as_observable(), n);
+  using vector_t = cow_vector<T>;
+  CAF_ASSERT(n > 0);
+  auto do_prefetch = [](auto in) {
+    auto ptr = op::prefetch<T>::apply(std::move(in).as_observable().pimpl());
+    return observable<T>{std::move(ptr)};
+  };
+  auto split = share(2);
+  auto tail = split.skip(n).compose(do_prefetch);
+  return split //
+    .take(n)
+    .to_vector()
+    .filter([n](const vector_t& xs) { return xs.size() == n; })
+    .map([tail](const vector_t& xs) { return make_cow_tuple(xs, tail); })
+    .as_observable();
 }
 
 template <class T>
 observable<cow_tuple<T, observable<T>>> observable<T>::head_and_tail() {
-  using prefix_tuple_t = cow_tuple<cow_vector<T>, observable<T>>;
-  return prefix_and_tail(1)
-    .map([](const prefix_tuple_t& tup) {
-      auto& [vec, obs] = tup.data();
-      CAF_ASSERT(vec.size() == 1);
-      return make_cow_tuple(vec.front(), obs);
-    })
+  auto do_prefetch = [](auto in) {
+    auto ptr = op::prefetch<T>::apply(std::move(in).as_observable().pimpl());
+    return observable<T>{std::move(ptr)};
+  };
+  auto split = share(2);
+  auto tail = split.skip(1).compose(do_prefetch);
+  return split //
+    .take(1)
+    .map([tail](const T& x) { return make_cow_tuple(x, tail); })
     .as_observable();
 }
 
@@ -934,7 +687,7 @@ observable<cow_tuple<T, observable<T>>> observable<T>::head_and_tail() {
 
 template <class T>
 connectable<T> observable<T>::publish() {
-  return connectable<T>{make_counted<op::publish<T>>(parent(), pimpl_)};
+  return connectable<T>{make_counted<op::publish<T>>(ctx(), pimpl_)};
 }
 
 template <class T>
@@ -950,8 +703,7 @@ observable<T> observable<T>::observe_on(coordinator* other, size_t buffer_size,
   auto [pull, push] = async::make_spsc_buffer_resource<T>(buffer_size,
                                                           min_request_size);
   subscribe(push);
-  return other->add_child_hdl(std::in_place_type<op::from_resource<T>>,
-                              std::move(pull));
+  return make_observable<op::from_resource<T>>(other, std::move(pull));
 }
 
 // -- observable: converting ---------------------------------------------------
@@ -961,58 +713,10 @@ async::consumer_resource<T>
 observable<T>::to_resource(size_t buffer_size, size_t min_request_size) {
   using buffer_type = async::spsc_buffer<T>;
   auto buf = make_counted<buffer_type>(buffer_size, min_request_size);
-  auto up = make_counted<buffer_writer_impl<buffer_type>>(pimpl_->parent());
-  up->init(buf);
+  auto up = make_counted<buffer_writer_impl<buffer_type>>(pimpl_->ctx(), buf);
+  buf->set_producer(up);
   subscribe(up->as_observer());
   return async::consumer_resource<T>{std::move(buf)};
-}
-
-template <class T>
-async::publisher<T> observable<T>::to_publisher() {
-  return async::publisher<T>::from(*this);
-}
-
-template <class T>
-template <class U>
-stream observable<T>::to_stream(cow_string name, timespan max_delay,
-                                size_t max_items_per_batch) {
-  static_assert(std::is_same_v<T, U> && has_type_id_v<U>,
-                "T must have a type ID when converting to a stream");
-  using trait_t = detail::batching_trait<U>;
-  using impl_t = flow::op::buffer<trait_t>;
-  auto* pptr = parent();
-  auto obs = pptr->add_child_hdl(std::in_place_type<flow::op::interval>,
-                                 max_delay, max_delay);
-  auto batch_op = pptr->add_child(std::in_place_type<impl_t>,
-                                  max_items_per_batch, *this, std::move(obs));
-  return pptr->to_stream_impl(cow_string{std::move(name)}, std::move(batch_op),
-                              type_id_v<U>, max_items_per_batch);
-}
-
-template <class T>
-template <class U>
-stream observable<T>::to_stream(std::string name, timespan max_delay,
-                                size_t max_items_per_batch) {
-  return to_stream<U>(cow_string{std::move(name)}, max_delay,
-                      max_items_per_batch);
-}
-
-template <class T>
-template <class U>
-typed_stream<U> observable<T>::to_typed_stream(cow_string name,
-                                               timespan max_delay,
-                                               size_t max_items_per_batch) {
-  auto res = to_stream<U>(std::move(name), max_delay, max_items_per_batch);
-  return {res.source(), res.name(), res.id()};
-}
-
-template <class T>
-template <class U>
-typed_stream<U> observable<T>::to_typed_stream(std::string name,
-                                               timespan max_delay,
-                                               size_t max_items_per_batch) {
-  auto res = to_stream<U>(std::move(name), max_delay, max_items_per_batch);
-  return {res.source(), res.name(), res.id()};
 }
 
 } // namespace caf::flow

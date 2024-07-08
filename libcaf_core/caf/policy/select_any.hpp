@@ -1,21 +1,20 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include <cstddef>
+#include <memory>
+
 #include "caf/behavior.hpp"
 #include "caf/config.hpp"
-#include "caf/detail/assert.hpp"
+#include "caf/detail/type_list.hpp"
 #include "caf/detail/type_traits.hpp"
 #include "caf/detail/typed_actor_util.hpp"
 #include "caf/disposable.hpp"
-#include "caf/log/core.hpp"
+#include "caf/logger.hpp"
 #include "caf/sec.hpp"
-#include "caf/type_list.hpp"
-
-#include <cstddef>
-#include <memory>
 
 namespace caf::detail {
 
@@ -27,9 +26,10 @@ struct select_any_factory<F, type_list<Ts...>> {
   template <class Fun>
   static auto
   make(std::shared_ptr<size_t> pending, disposable timeouts, Fun f) {
-    return [pending{std::move(pending)}, timeouts{std::move(timeouts)},
-            f{std::move(f)}](Ts... xs) mutable {
-      auto lg = log::core::trace("pending = {}", *pending);
+    using std::move;
+    return [pending{move(pending)}, timeouts{move(timeouts)},
+            f{move(f)}](Ts... xs) mutable {
+      CAF_LOG_TRACE(CAF_ARG2("pending", *pending));
       if (*pending > 0) {
         timeouts.dispose();
         f(xs...);
@@ -56,7 +56,8 @@ public:
   using message_id_list = std::vector<message_id>;
 
   template <class Fun>
-  using type_checker = detail::type_checker<response_type, std::decay_t<Fun>>;
+  using type_checker
+    = detail::type_checker<response_type, detail::decay_t<Fun>>;
 
   explicit select_any(message_id_list ids, disposable pending_timeouts)
     : ids_(std::move(ids)), pending_timeouts_(std::move(pending_timeouts)) {
@@ -66,7 +67,7 @@ public:
 
   template <class Self, class F, class OnError>
   void await(Self* self, F&& f, OnError&& g) {
-    auto lg = log::core::trace("ids_ = {}", ids_);
+    CAF_LOG_TRACE(CAF_ARG(ids_));
     auto bhvr = make_behavior(std::forward<F>(f), std::forward<OnError>(g));
     for (auto id : ids_)
       self->add_awaited_response_handler(id, bhvr);
@@ -74,7 +75,7 @@ public:
 
   template <class Self, class F, class OnError>
   void then(Self* self, F&& f, OnError&& g) {
-    auto lg = log::core::trace("ids_ = {}", ids_);
+    CAF_LOG_TRACE(CAF_ARG(ids_));
     auto bhvr = make_behavior(std::forward<F>(f), std::forward<OnError>(g));
     for (auto id : ids_)
       self->add_multiplexed_response_handler(id, bhvr);
@@ -82,7 +83,7 @@ public:
 
   template <class Self, class F, class G>
   void receive(Self* self, F&& f, G&& g) {
-    auto lg = log::core::trace("ids_ = {}", ids_);
+    CAF_LOG_TRACE(CAF_ARG(ids_));
     using factory = detail::select_any_factory<std::decay_t<F>>;
     auto pending = std::make_shared<size_t>(ids_.size());
     auto fw = factory::make(pending, pending_timeouts_, std::forward<F>(f));

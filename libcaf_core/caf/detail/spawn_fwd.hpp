@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/actor.hpp"
-#include "caf/actor_traits.hpp"
-
 #include <functional>
 #include <type_traits>
+
+#include "caf/actor.hpp"
+#include "caf/actor_traits.hpp"
 
 namespace caf::detail {
 
@@ -26,19 +26,21 @@ struct spawn_fwd_convert<T*> {
 /// Converts `scoped_actor` and pointers to actors to handles of type `actor`
 /// but simply forwards any other argument in the same way `std::forward` does.
 template <class T>
-std::conditional_t<spawn_fwd_convert<std::remove_reference_t<T>>::value, actor,
-                   T&&>
-spawn_fwd(std::remove_reference_t<T>& arg) noexcept {
+typename std::conditional<
+  spawn_fwd_convert<typename std::remove_reference<T>::type>::value, actor,
+  T&&>::type
+spawn_fwd(typename std::remove_reference<T>::type& arg) noexcept {
   return static_cast<T&&>(arg);
 }
 
 /// Converts `scoped_actor` and pointers to actors to handles of type `actor`
 /// but simply forwards any other argument in the same way `std::forward` does.
 template <class T>
-std::conditional_t<spawn_fwd_convert<std::remove_reference_t<T>>::value, actor,
-                   T&&>
-spawn_fwd(std::remove_reference_t<T>&& arg) noexcept {
-  static_assert(!std::is_lvalue_reference_v<T>,
+typename std::conditional<
+  spawn_fwd_convert<typename std::remove_reference<T>::type>::value, actor,
+  T&&>::type
+spawn_fwd(typename std::remove_reference<T>::type&& arg) noexcept {
+  static_assert(!std::is_lvalue_reference<T>::value,
                 "silently converting an lvalue to an rvalue");
   return static_cast<T&&>(arg);
 }

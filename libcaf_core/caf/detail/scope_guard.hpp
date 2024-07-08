@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -10,22 +10,21 @@ namespace caf::detail {
 
 /// A lightweight scope guard implementation.
 template <class Fun>
-class [[nodiscard]] scope_guard {
-public:
-  static_assert(noexcept(std::declval<Fun>()()),
-                "scope_guard requires a noexcept cleanup function");
-
-  explicit scope_guard(Fun f) noexcept : fun_(std::move(f)), enabled_(true) {
-    // nop
-  }
-
+class scope_guard {
   scope_guard() = delete;
-
   scope_guard(const scope_guard&) = delete;
-
   scope_guard& operator=(const scope_guard&) = delete;
 
-  ~scope_guard() noexcept {
+public:
+  scope_guard(Fun f) : fun_(std::move(f)), enabled_(true) {
+  }
+
+  scope_guard(scope_guard&& other)
+    : fun_(std::move(other.fun_)), enabled_(other.enabled_) {
+    other.enabled_ = false;
+  }
+
+  ~scope_guard() {
     if (enabled_)
       fun_();
   }
@@ -40,5 +39,12 @@ private:
   Fun fun_;
   bool enabled_;
 };
+
+/// Creates a guard that executes `f` as soon as it goes out of scope.
+/// @relates scope_guard
+template <class Fun>
+scope_guard<Fun> make_scope_guard(Fun f) {
+  return {std::move(f)};
+}
 
 } // namespace caf::detail

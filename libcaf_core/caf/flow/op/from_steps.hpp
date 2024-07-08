@@ -1,15 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
 #include "caf/defaults.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/detail/plain_ref_counted.hpp"
 #include "caf/detail/scope_guard.hpp"
 #include "caf/detail/type_list.hpp"
-#include "caf/flow/observer.hpp"
 
 #include <deque>
 #include <tuple>
@@ -19,11 +17,12 @@ namespace caf::flow::op {
 
 template <class... Steps>
 using from_steps_output_t =
-  typename detail::tl_back_t<type_list<Steps...>>::output_type;
+  typename detail::tl_back_t<detail::type_list<Steps...>>::output_type;
 
 template <class Input, class... Steps>
-class from_steps_sub : public subscription::impl_base,
-                       public observer_impl<Input> {
+class from_steps_sub : public detail::plain_ref_counted,
+                       public observer_impl<Input>,
+                       public subscription_impl {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -42,25 +41,36 @@ public:
     }
 
     void on_complete() {
-      // If a step calls on_complete from on_next, it must return `false`. This
-      // will cause on_next on the from_term_sub to dispose its input.
+      CAF_ASSERT(sub->in_.valid());
+      sub->in_.dispose();
+      sub->in_ = nullptr;
     }
 
     void on_error(const error& what) {
-      // Same as for on_complete, except that we store the error.
+      CAF_ASSERT(sub->in_.valid());
+      sub->in_.dispose();
+      sub->in_ = nullptr;
       sub->err_ = what;
     }
   };
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  from_steps_sub(coordinator* parent, observer<output_type> out,
+  from_steps_sub(coordinator* ctx, observer<output_type> out,
                  std::tuple<Steps...> steps)
-    : parent_(parent), out_(std::move(out)), steps_(std::move(steps)) {
+    : ctx_(ctx), out_(std::move(out)), steps_(std::move(steps)) {
     // nop
   }
 
   // -- ref counting -----------------------------------------------------------
+
+  void ref_disposable() const noexcept final {
+    this->ref();
+  }
+
+  void deref_disposable() const noexcept final {
+    this->deref();
+  }
 
   void ref_coordinated() const noexcept final {
     this->ref();
@@ -80,6 +90,10 @@ public:
 
   // -- properties -------------------------------------------------------------
 
+  bool subscribed() const noexcept {
+    return in_.valid();
+  }
+
   const error& fail_reason() const {
     return err_;
   }
@@ -90,93 +104,91 @@ public:
 
   // -- implementation of observer_impl<Input> ---------------------------------
 
-  coordinator* parent() const noexcept override {
-    return parent_;
-  }
-
   void on_next(const Input& item) override {
     CAF_ASSERT(!in_ || in_flight_ > 0);
-    if (!in_)
-      return;
-    --in_flight_;
-    auto fn = [this, &item](auto& step, auto&... steps) {
-      term_step term{this};
-      return step.on_next(item, steps..., term);
-    };
-    if (!std::apply(fn, steps_)) {
-      in_.cancel();
-    } else {
+    if (in_) {
+      --in_flight_;
+      auto fn = [this, &item](auto& step, auto&... steps) {
+        term_step term{this};
+        step.on_next(item, steps..., term);
+      };
+      std::apply(fn, steps_);
       pull();
+      if (!running_) {
+        running_ = true;
+        do_run();
+      }
     }
-    if (!running_)
-      do_run();
   }
 
   void on_complete() override {
-    if (!in_)
-      return;
-    in_.release_later();
-    auto fn = [this](auto& step, auto&... steps) {
-      term_step term{this};
-      step.on_complete(steps..., term);
-    };
-    std::apply(fn, steps_);
-    if (!running_)
-      do_run();
+    if (in_) {
+      auto fn = [this](auto& step, auto&... steps) {
+        term_step term{this};
+        step.on_complete(steps..., term);
+      };
+      std::apply(fn, steps_);
+      if (!running_) {
+        running_ = true;
+        do_run();
+      }
+    }
   }
 
   void on_error(const error& what) override {
-    if (!in_)
-      return;
-    in_.release_later();
-    auto fn = [this, &what](auto& step, auto&... steps) {
-      term_step term{this};
-      step.on_error(what, steps..., term);
-    };
-    std::apply(fn, steps_);
-    if (!running_)
-      do_run();
+    if (in_) {
+      auto fn = [this, &what](auto& step, auto&... steps) {
+        term_step term{this};
+        step.on_error(what, steps..., term);
+      };
+      std::apply(fn, steps_);
+      if (!running_) {
+        running_ = true;
+        do_run();
+      }
+    }
   }
 
   void on_subscribe(subscription in) override {
     if (!in_) {
       in_ = std::move(in);
       pull();
-      return;
+    } else {
+      in.dispose();
     }
-    in.cancel();
   }
 
   // -- implementation of subscription_impl ------------------------------------
 
   bool disposed() const noexcept override {
-    return !out_;
+    return disposed_;
+  }
+
+  void dispose() override {
+    CAF_LOG_TRACE("");
+    if (!disposed_) {
+      disposed_ = true;
+      demand_ = 0;
+      buf_.clear();
+      ctx_->delay_fn([out = std::move(out_)]() mutable { out.on_complete(); });
+    }
+    if (in_) {
+      in_.dispose();
+      in_ = nullptr;
+    }
   }
 
   void request(size_t n) override {
-    auto lg = log::core::trace("n = {}", n);
+    CAF_LOG_TRACE(CAF_ARG(n));
     if (demand_ != 0) {
       demand_ += n;
-      return;
+    } else {
+      demand_ = n;
+      run_later();
     }
-    demand_ = n;
-    run_later();
   }
 
 private:
-  void do_dispose(bool from_external) override {
-    auto lg = log::core::trace("");
-    if (!out_)
-      return;
-    in_.cancel();
-    demand_ = 0;
-    buf_.clear();
-    if (from_external)
-      out_.on_error(make_error(sec::disposed));
-    else
-      out_.release_later();
-  }
-
   void pull() {
     if (auto pending = buf_.size() + in_flight_;
         in_ && pending < max_buf_size_) {
@@ -188,33 +200,31 @@ private:
 
   void run_later() {
     if (!running_) {
-      parent_->delay_fn([ptr = strong_this()] { ptr->do_run(); });
+      running_ = true;
+      ctx_->delay_fn([ptr = strong_this()] { ptr->do_run(); });
     }
   }
 
   void do_run() {
-    running_ = true;
-    auto guard = detail::scope_guard{[this]() noexcept { running_ = false; }};
-    if (!out_)
-      return;
-    while (demand_ > 0 && !buf_.empty()) {
-      auto item = std::move(buf_.front());
-      buf_.pop_front();
-      --demand_;
-      out_.on_next(item);
-      // Note: on_next() may call dispose() and set out_ to nullptr.
-      if (!out_)
-        return;
-    }
-    if (in_) {
-      pull();
-      return;
-    }
-    if (buf_.empty() && out_) {
-      if (!err_)
-        out_.on_complete();
-      else
-        out_.on_error(err_);
+    auto guard = detail::make_scope_guard([this] { running_ = false; });
+    if (!disposed_) {
+      CAF_ASSERT(out_);
+      while (demand_ > 0 && !buf_.empty()) {
+        auto item = std::move(buf_.front());
+        buf_.pop_front();
+        --demand_;
+        out_.on_next(item);
+      }
+      if (in_) {
+        pull();
+      } else if (buf_.empty()) {
+        if (err_)
+          out_.on_error(err_);
+        else
+          out_.on_complete();
+        out_ = nullptr;
+        disposed_ = true;
+      }
     }
   }
 
@@ -222,7 +232,7 @@ private:
     return {this};
   }
 
-  coordinator* parent_;
+  coordinator* ctx_;
   subscription in_;
   observer<output_type> out_;
   std::tuple<Steps...> steps_;
@@ -230,6 +240,7 @@ private:
   size_t demand_ = 0;
   size_t in_flight_ = 0;
   size_t max_buf_size_ = defaults::flow::buffer_size;
+  bool disposed_ = false;
   bool running_ = false;
   error err_;
 };
@@ -249,9 +260,9 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  from_steps(coordinator* parent, intrusive_ptr<base<input_type>> input,
+  from_steps(coordinator* ctx, intrusive_ptr<base<input_type>> input,
              std::tuple<Steps...> steps)
-    : super(parent), input_(std::move(input)), steps_(std::move(steps)) {
+    : super(ctx), input_(std::move(input)), steps_(std::move(steps)) {
     // nop
   }
 
@@ -259,11 +270,22 @@ public:
 
   disposable subscribe(observer<output_type> out) override {
     using sub_t = from_steps_sub<Input, Steps...>;
-    auto ptr = super::parent_->add_child(std::in_place_type<sub_t>, out,
-                                         steps_);
-    out.on_subscribe(subscription{ptr});
+    auto ptr = make_counted<sub_t>(super::ctx_, out, steps_);
     input_->subscribe(observer<input_type>{ptr});
-    return ptr->as_disposable();
+    if (ptr->subscribed()) {
+      auto sub = subscription{std::move(ptr)};
+      out.on_subscribe(sub);
+      return std::move(sub).as_disposable();
+    } else if (auto& fail_reason = ptr->fail_reason()) {
+      out.on_error(fail_reason);
+      return disposable{};
+    } else {
+      auto err = make_error(sec::invalid_observable,
+                            "flow operator from_steps failed "
+                            "to subscribe to its input");
+      out.on_error(err);
+      return disposable{};
+    }
   }
 
 private:

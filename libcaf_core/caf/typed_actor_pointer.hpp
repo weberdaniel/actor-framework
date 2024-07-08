@@ -1,41 +1,37 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/detail/to_statically_typed_trait.hpp"
 #include "caf/detail/type_list.hpp"
+#include "caf/detail/type_traits.hpp"
 #include "caf/typed_actor_view.hpp"
 
 namespace caf {
 
-template <class...>
-class typed_actor_pointer;
-
-/// Provides a view to an actor that implements this messaging interface without
-/// knowledge of the actual type.
-template <class TraitOrSignature>
-class typed_actor_pointer<TraitOrSignature> : public typed_actor_view_base {
+template <class... Sigs>
+class typed_actor_pointer : public typed_actor_view_base {
 public:
-  using trait = detail::to_statically_typed_trait_t<TraitOrSignature>;
-
   /// Stores the template parameter pack.
-  using signatures = typename trait::signatures;
+  using signatures = detail::type_list<Sigs...>;
 
   typed_actor_pointer() : view_(nullptr) {
     // nop
   }
 
   template <class Supertype,
-            class = std::enable_if_t<detail::tl_subset_of<
-              signatures, typename Supertype::signatures>::value>>
+            class = detail::enable_if_t< //
+              detail::tl_subset_of<detail::type_list<Sigs...>,
+                                   typename Supertype::signatures>::value>>
   typed_actor_pointer(Supertype* selfptr) : view_(selfptr) {
     // nop
   }
 
-  template <class... OtherSigs, class = std::enable_if_t<detail::tl_subset_of<
-                                  signatures, type_list<OtherSigs...>>::value>>
+  template <class... OtherSigs,
+            class = detail::enable_if_t< //
+              detail::tl_subset_of<detail::type_list<Sigs...>,
+                                   detail::type_list<OtherSigs...>>::value>>
   typed_actor_pointer(typed_actor_pointer<OtherSigs...> other)
     : view_(other.internal_ptr()) {
     // nop
@@ -53,37 +49,35 @@ public:
   typed_actor_pointer& operator=(Supertype* ptr) {
     using namespace detail;
     static_assert(
-      tl_subset_of<signatures, typename Supertype::signatures>::value,
+      tl_subset_of<type_list<Sigs...>, typename Supertype::signatures>::value,
       "cannot assign pointer of unrelated actor type");
     view_.reset(ptr);
     return *this;
   }
 
   template <class... OtherSigs,
-            class = std::enable_if_t< //
-              detail::tl_subset_of<signatures, type_list<OtherSigs...>>::value>>
+            class = detail::enable_if_t< //
+              detail::tl_subset_of<detail::type_list<Sigs...>,
+                                   detail::type_list<OtherSigs...>>::value>>
   typed_actor_pointer& operator=(typed_actor_pointer<OtherSigs...> other) {
     using namespace detail;
-    static_assert(tl_subset_of<signatures, type_list<OtherSigs...>>::value,
-                  "cannot assign pointer of unrelated actor type");
+    static_assert(
+      tl_subset_of<type_list<Sigs...>, type_list<OtherSigs...>>::value,
+      "cannot assign pointer of unrelated actor type");
     view_.reset(other.internal_ptr());
     return *this;
   }
 
-  typed_actor_view<trait>* operator->() {
+  typed_actor_view<Sigs...>* operator->() {
     return &view_;
   }
 
-  const typed_actor_view<trait>* operator->() const {
+  const typed_actor_view<Sigs...>* operator->() const {
     return &view_;
   }
 
-  bool operator!() const noexcept {
-    return internal_ptr() == nullptr;
-  }
-
-  explicit operator bool() const noexcept {
-    return internal_ptr() != nullptr;
+  explicit operator bool() const {
+    return static_cast<bool>(view_.internal_ptr());
   }
 
   /// @private
@@ -106,19 +100,7 @@ public:
   }
 
 private:
-  typed_actor_view<trait> view_;
-};
-
-/// Provides a view to an actor that implements this messaging interface without
-/// knowledge of the actual type.
-/// @note This is a specialization for backwards compatibility with pre v1.0
-///       releases. Please use the trait based implementation.
-template <class T1, class T2, class... Ts>
-class typed_actor_pointer<T1, T2, Ts...>
-  : public typed_actor_pointer<statically_typed<T1, T2, Ts...>> {
-  using super = typed_actor_pointer<statically_typed<T1, T2, Ts...>>;
-
-  using super::super;
+  typed_actor_view<Sigs...> view_;
 };
 
 } // namespace caf

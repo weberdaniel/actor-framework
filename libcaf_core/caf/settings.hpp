@@ -1,16 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <string_view>
 
 #include "caf/config_value.hpp"
 #include "caf/defaults.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/dictionary.hpp"
 #include "caf/raise_error.hpp"
-
-#include <string_view>
 
 namespace caf {
 
@@ -63,7 +63,7 @@ template <class To = get_or_auto_deduce, class Fallback>
 auto get_or(const settings& xs, std::string_view name, Fallback&& fallback) {
   if (auto ptr = get_if(&xs, name)) {
     return get_or<To>(*ptr, std::forward<Fallback>(fallback));
-  } else if constexpr (std::is_same_v<To, get_or_auto_deduce>) {
+  } else if constexpr (std::is_same<To, get_or_auto_deduce>::value) {
     using guide = get_or_deduction_guide<std::decay_t<Fallback>>;
     return guide::convert(std::forward<Fallback>(fallback));
   } else {
@@ -93,15 +93,13 @@ CAF_CORE_EXPORT config_value& put_impl(settings& dict, std::string_view name,
                                        config_value& value);
 
 /// Converts `value` to a `config_value` and assigns it to `key`.
-/// @param xs Dictionary of key-value pairs.
+/// @param dict Dictionary of key-value pairs.
 /// @param key Human-readable nested keys in the form `category.key`.
 /// @param value New value for given `key`.
 template <class T>
-config_value& put(settings& xs, std::string_view key, T&& value) {
-  config_value tmp;
-  if (auto err = tmp.assign(std::forward<T>(value)); err)
-    tmp = none;
-  return put_impl(xs, key, tmp);
+config_value& put(settings& dict, std::string_view key, T&& value) {
+  config_value tmp{std::forward<T>(value)};
+  return put_impl(dict, key, tmp);
 }
 
 /// Converts `value` to a `config_value` and assigns it to `key` unless `xs`
@@ -113,9 +111,8 @@ template <class T>
 void put_missing(settings& xs, std::string_view key, T&& value) {
   if (get_if(&xs, key) != nullptr)
     return;
-  config_value tmp;
-  if (auto err = tmp.assign(std::forward<T>(value)); !err)
-    put_impl(xs, key, tmp);
+  config_value tmp{std::forward<T>(value)};
+  put_impl(xs, key, tmp);
 }
 
 /// Inserts a new list named `name` into the dictionary `xs` and returns
@@ -135,8 +132,8 @@ template <class T>
 struct has_init {
 private:
   template <class U>
-  static auto sfinae(U* x, settings* y = nullptr) -> decltype(x->init(*y),
-                                                              std::true_type());
+  static auto sfinae(U* x, settings* y = nullptr)
+    -> decltype(x->init(*y), std::true_type());
 
   template <class U>
   static auto sfinae(...) -> std::false_type;

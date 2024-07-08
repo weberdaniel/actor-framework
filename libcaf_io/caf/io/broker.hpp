@@ -1,52 +1,59 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/io/abstract_broker.hpp"
-#include "caf/io/datagram_servant.hpp"
-#include "caf/io/doorman.hpp"
-#include "caf/io/scribe.hpp"
-
-#include "caf/detail/assert.hpp"
-#include "caf/detail/io_export.hpp"
-#include "caf/dynamically_typed.hpp"
-#include "caf/extend.hpp"
-#include "caf/fwd.hpp"
-#include "caf/infer_handle.hpp"
-#include "caf/keep_behavior.hpp"
-#include "caf/local_actor.hpp"
-#include "caf/mixin/requester.hpp"
-#include "caf/mixin/sender.hpp"
-#include "caf/stateful_actor.hpp"
 
 #include <map>
 #include <vector>
 
-namespace caf::io {
+#include "caf/detail/io_export.hpp"
+#include "caf/extend.hpp"
+#include "caf/fwd.hpp"
+#include "caf/io/abstract_broker.hpp"
+#include "caf/io/datagram_servant.hpp"
+#include "caf/io/doorman.hpp"
+#include "caf/io/scribe.hpp"
+#include "caf/local_actor.hpp"
+#include "caf/mixin/behavior_changer.hpp"
+#include "caf/mixin/requester.hpp"
+#include "caf/mixin/sender.hpp"
+#include "caf/stateful_actor.hpp"
+
+namespace caf {
+
+template <>
+class behavior_type_of<io::broker> {
+public:
+  using type = behavior;
+};
+
+namespace io {
 
 /// Describes a dynamically typed broker.
 /// @extends abstract_broker
 /// @ingroup Broker
 class CAF_IO_EXPORT broker
-  : public extend<abstract_broker, broker>::with<mixin::sender,
-                                                 mixin::requester>,
+  // clang-format off
+  : public extend<abstract_broker, broker>::
+           with<mixin::sender, mixin::requester,
+                mixin::behavior_changer>,
     public dynamically_typed_actor_base {
+  // clang-format on
 public:
-  using super = extended_base;
+  using super
+    = extend<abstract_broker, broker>::with<mixin::sender, mixin::requester,
+                                            mixin::behavior_changer>;
 
   using signatures = none_t;
 
-  using behavior_type = behavior;
-
   template <class F, class... Ts>
-  infer_handle_from_fun_t<F> fork(F fun, connection_handle hdl, Ts&&... xs) {
+  typename infer_handle_from_fun<F>::type
+  fork(F fun, connection_handle hdl, Ts&&... xs) {
     CAF_ASSERT(context() != nullptr);
     auto sptr = this->take(hdl);
     CAF_ASSERT(sptr->hdl() == hdl);
-    using trait = infer_handle_from_fun_trait_t<F>;
-    using impl = typename trait::impl;
+    using impl = typename infer_handle_from_fun<F>::impl;
     actor_config cfg{context()};
     detail::init_fun_factory<impl, F> fac;
     cfg.init_fun = fac(std::move(fun), hdl, std::forward<Ts>(xs)...);
@@ -58,35 +65,15 @@ public:
 
   void initialize() override;
 
-  using super::super;
+  explicit broker(actor_config& cfg);
 
-  // -- messaging --------------------------------------------------------------
+  broker(broker&&) = delete;
 
-  /// Starts a new message.
-  template <class... Args>
-  auto mail(Args&&... args) {
-    return event_based_mail(dynamically_typed{}, this,
-                            std::forward<Args>(args)...);
-  }
+  broker(const broker&) = delete;
 
-  // -- behavior management ----------------------------------------------------
+  broker& operator=(broker&&) = delete;
 
-  /// @copydoc event_based_actor::become
-  template <class T, class... Ts>
-  void become(T&& arg, Ts&&... args) {
-    if constexpr (std::is_same_v<keep_behavior_t, std::decay_t<T>>) {
-      static_assert(sizeof...(Ts) > 0);
-      do_become(behavior{std::forward<Ts>(args)...}, false);
-    } else {
-      do_become(behavior{std::forward<T>(arg), std::forward<Ts>(args)...},
-                true);
-    }
-  }
-
-  /// @copydoc event_based_actor::unbecome
-  void unbecome() {
-    bhvr_stack_.pop_back();
-  }
+  broker& operator=(const broker&) = delete;
 
 protected:
   virtual behavior make_behavior();
@@ -96,4 +83,5 @@ protected:
 template <class State>
 using stateful_broker = stateful_actor<State, broker>;
 
-} // namespace caf::io
+} // namespace io
+} // namespace caf

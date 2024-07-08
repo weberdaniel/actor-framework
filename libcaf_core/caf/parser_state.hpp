@@ -1,29 +1,21 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/detail/core_export.hpp"
-#include "caf/error.hpp"
-#include "caf/fwd.hpp"
-#include "caf/pec.hpp"
 
 #include <cctype>
 #include <cstdint>
 #include <string_view>
 
-namespace caf {
+#include "caf/fwd.hpp"
+#include "caf/pec.hpp"
 
-/// Converts the code and the current position of a parser to an error.
-CAF_CORE_EXPORT error parser_state_to_error(pec code, int32_t line,
-                                            int32_t column);
+namespace caf {
 
 /// Stores all information necessary for implementing an FSM-based parser.
 template <class Iterator, class Sentinel>
 struct parser_state {
-  using iterator_type = Iterator;
-
   /// Current position of the parser.
   Iterator i;
 
@@ -132,12 +124,17 @@ struct parser_state {
     }
     return false;
   }
-
-  /// Returns an error from the current state.
-  auto error() {
-    return parser_state_to_error(code, line, column);
-  }
 };
+
+/// Returns an error object from the current code in `ps` as well as its
+/// current position.
+template <class Iterator, class Sentinel, class... Ts>
+auto make_error(const parser_state<Iterator, Sentinel>& ps, Ts&&... xs)
+  -> decltype(make_error(ps.code, ps.line, ps.column)) {
+  if (ps.code == pec::success)
+    return {};
+  return make_error(ps.code, ps.line, ps.column, std::forward<Ts>(xs)...);
+}
 
 /// Specialization for parsers operating on string views.
 using string_parser_state = parser_state<std::string_view::iterator>;

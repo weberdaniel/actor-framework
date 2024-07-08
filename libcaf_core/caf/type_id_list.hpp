@@ -1,8 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
@@ -10,15 +15,10 @@
 #include "caf/span.hpp"
 #include "caf/type_id.hpp"
 
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <string>
-
 namespace caf {
 
 /// A list of type IDs, stored in a size-prefix, contiguous memory block.
-class CAF_CORE_EXPORT type_id_list : detail::comparable<type_id_list> {
+class type_id_list : detail::comparable<type_id_list> {
 public:
   using pointer = const type_id_t*;
 
@@ -140,19 +140,13 @@ type_id_list make_argument_type_id_list() {
   return argument_type_id_list_factory<F>::make();
 }
 
-template <class... Sigs>
-std::array<type_id_list, sizeof...(Sigs)>
-make_signatures_type_id_list(type_list<Sigs...>) {
-  return {{detail::make_argument_type_id_list<Sigs>()...}};
-}
-
 template <class List>
 struct to_type_id_list_helper;
 
 template <class... Ts>
 struct to_type_id_list_helper<type_list<Ts...>> {
   static constexpr type_id_list get() {
-    return make_type_id_list<Ts...>();
+    return make_type_id_list<typename strip_param<Ts>::type...>();
   }
 };
 

@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -9,7 +9,6 @@
 #include "caf/make_counted.hpp"
 #include "caf/ref_counted.hpp"
 
-#include <initializer_list>
 #include <vector>
 
 namespace caf {
@@ -20,15 +19,11 @@ class cow_vector {
 public:
   // -- member types -----------------------------------------------------------
 
-  using value_type = T;
-
-  using std_type = std::vector<value_type>;
+  using std_type = std::vector<T>;
 
   using size_type = typename std_type::size_type;
 
   using const_iterator = typename std_type::const_iterator;
-
-  using difference_type = typename std_type::difference_type;
 
   using const_reverse_iterator = typename std_type::const_reverse_iterator;
 
@@ -40,10 +35,6 @@ public:
 
   explicit cow_vector(std_type std) {
     impl_ = make_counted<impl>(std::move(std));
-  }
-
-  explicit cow_vector(std::initializer_list<T> values) {
-    impl_ = make_counted<impl>(std_type{values});
   }
 
   cow_vector(cow_vector&&) noexcept = default;
@@ -173,38 +164,38 @@ private:
 // -- comparison ---------------------------------------------------------------
 
 template <class T>
-auto operator==(const cow_vector<T>& xs,
-                const cow_vector<T>& ys) -> decltype(xs.std() == ys.std()) {
+auto operator==(const cow_vector<T>& xs, const cow_vector<T>& ys)
+  -> decltype(xs.std() == ys.std()) {
   return xs.std() == ys.std();
 }
 
 template <class T>
-auto operator==(const cow_vector<T>& xs,
-                const std::vector<T>& ys) -> decltype(xs.std() == ys) {
+auto operator==(const cow_vector<T>& xs, const std::vector<T>& ys)
+  -> decltype(xs.std() == ys) {
   return xs.std() == ys;
 }
 
 template <class T>
-auto operator==(const std::vector<T>& xs,
-                const cow_vector<T>& ys) -> decltype(xs == ys.std()) {
+auto operator==(const std::vector<T>& xs, const cow_vector<T>& ys)
+  -> decltype(xs == ys.std()) {
   return xs.std() == ys;
 }
 
 template <class T>
-auto operator!=(const cow_vector<T>& xs,
-                const cow_vector<T>& ys) -> decltype(xs.std() != ys.std()) {
+auto operator!=(const cow_vector<T>& xs, const cow_vector<T>& ys)
+  -> decltype(xs.std() != ys.std()) {
   return xs.std() != ys.std();
 }
 
 template <class T>
-auto operator!=(const cow_vector<T>& xs,
-                const std::vector<T>& ys) -> decltype(xs.std() != ys) {
+auto operator!=(const cow_vector<T>& xs, const std::vector<T>& ys)
+  -> decltype(xs.std() != ys) {
   return xs.std() != ys;
 }
 
 template <class T>
-auto operator!=(const std::vector<T>& xs,
-                const cow_vector<T>& ys) -> decltype(xs != ys.std()) {
+auto operator!=(const std::vector<T>& xs, const cow_vector<T>& ys)
+  -> decltype(xs != ys.std()) {
   return xs.std() != ys;
 }
 

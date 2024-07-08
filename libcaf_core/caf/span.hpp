@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/detail/type_traits.hpp"
 
 #include <array>
 #include <cstddef>
 #include <type_traits>
+
+#include "caf/detail/type_traits.hpp"
 
 namespace caf {
 
@@ -21,7 +21,7 @@ public:
 
   using element_type = T;
 
-  using value_type = std::remove_cv_t<T>;
+  using value_type = typename std::remove_cv<T>::type;
 
   using index_type = size_t;
 
@@ -64,14 +64,16 @@ public:
     // nop
   }
 
-  template <class C, class = std::enable_if_t<
-                       detail::has_convertible_data_member_v<C, value_type>>>
+  template <class C,
+            class = std::enable_if_t<
+              detail::has_convertible_data_member<C, value_type>::value>>
   span(C& xs) noexcept : begin_(xs.data()), size_(xs.size()) {
     // nop
   }
 
-  template <class C, class = std::enable_if_t<
-                       detail::has_convertible_data_member_v<C, value_type>>>
+  template <class C,
+            class = std::enable_if_t<
+              detail::has_convertible_data_member<C, value_type>::value>>
   span(const C& xs) noexcept : begin_(xs.data()), size_(xs.size()) {
     // nop
   }
@@ -207,7 +209,7 @@ span<std::byte> as_writable_bytes(span<T> xs) {
 /// Convenience function to make using `caf::span` more convenient without the
 /// deduction guides.
 template <class T>
-auto make_span(T& xs) -> span<std::remove_reference_t<decltype(xs[0])>> {
+auto make_span(T& xs) -> span<detail::remove_reference_t<decltype(xs[0])>> {
   return {xs.data(), xs.size()};
 }
 

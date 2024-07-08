@@ -1,12 +1,11 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
 #include "caf/async/execution_context.hpp"
 #include "caf/async/future.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/detail/async_cell.hpp"
 #include "caf/disposable.hpp"
 #include "caf/raise_error.hpp"
@@ -19,8 +18,6 @@ namespace caf::async {
 template <class T>
 class promise {
 public:
-  using value_type = std::conditional_t<std::is_void_v<T>, unit_t, T>;
-
   promise(promise&&) noexcept = default;
 
   promise& operator=(promise&&) noexcept = default;
@@ -30,8 +27,8 @@ public:
   }
 
   promise& operator=(const promise& other) noexcept {
-    if (this != &other)
-      return *this = promise{other};
+    promise copy{other};
+    cell_.swap(copy.cell_);
     return *this;
   }
 
@@ -51,12 +48,8 @@ public:
             cell_->events.swap(events);
           }
         }
-        for (auto& [listener, callback] : events) {
-          if (listener)
-            listener->schedule(std::move(callback));
-          else
-            callback.run();
-        }
+        for (auto& [listener, callback] : events)
+          listener->schedule(std::move(callback));
       }
     }
   }
@@ -74,7 +67,7 @@ public:
   }
 
   /// @pre `valid()`
-  void set_value(value_type value) {
+  void set_value(T value) {
     if (valid()) {
       do_set(value);
       cell_ = nullptr;
@@ -115,12 +108,8 @@ private:
         CAF_RAISE_ERROR("promise already satisfied");
       }
     }
-    for (auto& [listener, callback] : events) {
-      if (listener)
-        listener->schedule(std::move(callback));
-      else
-        callback.run();
-    }
+    for (auto& [listener, callback] : events)
+      listener->schedule(std::move(callback));
   }
 
   cell_ptr cell_;

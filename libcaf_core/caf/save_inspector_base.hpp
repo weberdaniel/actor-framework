@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/inspector_access.hpp"
-#include "caf/save_inspector.hpp"
-
 #include <string_view>
 #include <tuple>
+
+#include "caf/inspector_access.hpp"
+#include "caf/save_inspector.hpp"
 
 namespace caf {
 
@@ -44,7 +44,7 @@ public:
       return false;
     for (auto&& val : xs) {
       using found_type = std::decay_t<decltype(val)>;
-      if constexpr (std::is_same_v<found_type, value_type>) {
+      if constexpr (std::is_same<found_type, value_type>::value) {
         if (!detail::save(dref(), val))
           return false;
       } else {
@@ -81,7 +81,7 @@ public:
 
   template <class T>
   bool tuple(const T& xs) {
-    return tuple(xs, std::make_index_sequence<std::tuple_size_v<T>>{});
+    return tuple(xs, std::make_index_sequence<std::tuple_size<T>::value>{});
   }
 
   template <class T, size_t N>

@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -39,8 +39,8 @@ class generation_materializer {
 public:
   using output_type = typename Generator::output_type;
 
-  generation_materializer(coordinator* parent, Generator generator)
-    : parent_(parent), gen_(std::move(generator)) {
+  generation_materializer(coordinator* ctx, Generator generator)
+    : ctx_(ctx), gen_(std::move(generator)) {
     // nop
   }
 
@@ -54,16 +54,15 @@ public:
   template <class... Steps>
   auto materialize(std::tuple<Steps...>&& steps) && {
     using impl_t = op::from_generator<Generator, Steps...>;
-    return parent_->add_child_hdl(std::in_place_type<impl_t>, std::move(gen_),
-                                  std::move(steps));
+    return make_observable<impl_t>(ctx_, std::move(gen_), std::move(steps));
   }
 
   bool valid() const noexcept {
-    return parent_ != nullptr;
+    return ctx_ != nullptr;
   }
 
 private:
-  coordinator* parent_;
+  coordinator* ctx_;
   Generator gen_;
 };
 
@@ -83,18 +82,13 @@ public:
   template <class Generator>
   generation<Generator> from_generator(Generator generator) const {
     using materializer_t = generation_materializer<Generator>;
-    return generation<Generator>{materializer_t{parent_, std::move(generator)}};
+    return generation<Generator>{materializer_t{ctx_, std::move(generator)}};
   }
 
   /// Creates a @ref generation that emits `value` once.
   template <class T>
-  auto just(T value) const {
-    if constexpr (is_observable_v<T>) {
-      using out_t = observable<output_type_t<T>>;
-      return from_generator(gen::just<out_t>{std::move(value).as_observable()});
-    } else {
-      return from_generator(gen::just<T>{std::move(value)});
-    }
+  generation<gen::just<T>> just(T value) const {
+    return from_generator(gen::just<T>{std::move(value)});
   }
 
   /// Creates a @ref generation that emits `value` repeatedly.
@@ -140,7 +134,7 @@ public:
   template <class T>
   observable<T> from_resource(async::consumer_resource<T> res) const {
     using impl_t = op::from_resource<T>;
-    return parent_->add_child_hdl(std::in_place_type<impl_t>, std::move(res));
+    return make_observable<impl_t>(ctx_, std::move(res));
   }
 
   /// Creates an @ref observable that emits a sequence of integers spaced by the
@@ -150,8 +144,7 @@ public:
   template <class Rep, class Period>
   observable<int64_t> interval(std::chrono::duration<Rep, Period> initial_delay,
                                std::chrono::duration<Rep, Period> period) {
-    return parent_->add_child_hdl(std::in_place_type<op::interval>,
-                                  initial_delay, period);
+    return make_observable<op::interval>(ctx_, initial_delay, period);
   }
 
   /// Creates an @ref observable that emits a sequence of integers spaced by the
@@ -165,63 +158,66 @@ public:
   /// Creates an @ref observable that emits a single item after the @p delay.
   template <class Rep, class Period>
   observable<int64_t> timer(std::chrono::duration<Rep, Period> delay) {
-    return parent_->add_child_hdl(std::in_place_type<op::interval>, delay,
-                                  delay, 1);
+    return make_observable<op::interval>(ctx_, delay, delay, 1);
   }
 
   /// Creates an @ref observable without any values that also never terminates.
   template <class T>
   observable<T> never() {
-    return parent_->add_child_hdl(std::in_place_type<op::never<T>>);
+    return make_observable<op::never<T>>(ctx_);
   }
 
   /// Creates an @ref observable without any values that fails immediately when
   /// subscribing to it by calling `on_error` on the subscriber.
   template <class T>
   observable<T> fail(error what) {
-    return parent_->add_child_hdl(std::in_place_type<op::fail<T>>,
-                                  std::move(what));
+    return make_observable<op::fail<T>>(ctx_, std::move(what));
   }
 
   /// Create a fresh @ref observable for each @ref observer using the factory.
   template <class Factory>
   auto defer(Factory factory) {
-    return parent_->add_child_hdl(std::in_place_type<op::defer<Factory>>,
-                                  std::move(factory));
+    return make_observable<op::defer<Factory>>(ctx_, std::move(factory));
   }
 
   /// Creates an @ref observable that combines the items emitted from all passed
   /// source observables.
   template <class Input, class... Inputs>
-  auto merge(Input x, Inputs... xs) {
-    static_assert(is_observable_v<Input> && (is_observable_v<Inputs> && ...),
-                  "all parameters must be observables");
-    using out_t = output_type_t<Input>;
-    static_assert((std::is_same_v<out_t, output_type_t<Inputs>> && ...),
-                  "all observables must have the same output type");
-    using impl_t = op::merge<out_t>;
-    return parent_->add_child_hdl(std::in_place_type<impl_t>,
-                                  std::move(x).as_observable(),
-                                  std::move(xs).as_observable()...);
+  auto merge(Input&& x, Inputs&&... xs) {
+    using in_t = std::decay_t<Input>;
+    if constexpr (is_observable_v<in_t>) {
+      using impl_t = op::merge<output_type_t<in_t>>;
+      return make_observable<impl_t>(ctx_, std::forward<Input>(x),
+                                     std::forward<Inputs>(xs)...);
+    } else {
+      static_assert(detail::is_iterable_v<in_t>);
+      using val_t = typename in_t::value_type;
+      static_assert(is_observable_v<val_t>);
+      using impl_t = op::merge<output_type_t<val_t>>;
+      return make_observable<impl_t>(ctx_, std::forward<Input>(x),
+                                     std::forward<Inputs>(xs)...);
+    }
   }
 
   /// Creates an @ref observable that concatenates the items emitted from all
   /// passed source observables.
   template <class Input, class... Inputs>
   auto concat(Input&& x, Inputs&&... xs) {
-    static_assert(is_observable_v<Input> && (is_observable_v<Inputs> && ...),
-                  "all parameters must be observables");
-    using out_t = output_type_t<Input>;
-    static_assert((std::is_same_v<out_t, output_type_t<Inputs>> && ...),
-                  "all observables must have the same output type");
-    using impl_t = op::concat<out_t>;
-    return parent_->add_child_hdl(std::in_place_type<impl_t>,
-                                  std::forward<Input>(x).as_observable(),
-                                  std::forward<Inputs>(xs).as_observable()...);
+    using in_t = std::decay_t<Input>;
+    if constexpr (is_observable_v<in_t>) {
+      using impl_t = op::concat<output_type_t<in_t>>;
+      return make_observable<impl_t>(ctx_, std::forward<Input>(x),
+                                     std::forward<Inputs>(xs)...);
+    } else {
+      static_assert(detail::is_iterable_v<in_t>);
+      using val_t = typename in_t::value_type;
+      static_assert(is_observable_v<val_t>);
+      using impl_t = op::concat<output_type_t<val_t>>;
+      return make_observable<impl_t>(ctx_, std::forward<Input>(x),
+                                     std::forward<Inputs>(xs)...);
+    }
   }
 
-  /// Creates an @ref observable that combines the emitted from all passed
-  /// source observables by applying a function object.
   /// @param fn The zip function. Takes one element from each input at a time
   ///           and reduces them into a single result.
   /// @param input0 The input at index 0.
@@ -229,16 +225,32 @@ public:
   /// @param inputs The inputs for index > 1, if any.
   template <class F, class T0, class T1, class... Ts>
   auto zip_with(F fn, T0 input0, T1 input1, Ts... inputs) {
-    return op::make_zip_with(parent_, std::move(fn), std::move(input0),
-                             std::move(input1), std::move(inputs)...);
+    using output_type = op::zip_with_output_t<F, //
+                                              typename T0::output_type,
+                                              typename T1::output_type,
+                                              typename Ts::output_type...>;
+    using impl_t = op::zip_with<F,                        //
+                                typename T0::output_type, //
+                                typename T1::output_type, //
+                                typename Ts::output_type...>;
+    if (input0.valid() && input1.valid() && (inputs.valid() && ...)) {
+      auto ptr = make_counted<impl_t>(ctx_, std::move(fn),
+                                      std::move(input0).as_observable(),
+                                      std::move(input1).as_observable(),
+                                      std::move(inputs).as_observable()...);
+      return observable<output_type>{std::move(ptr)};
+    } else {
+      auto ptr = make_counted<op::empty<output_type>>(ctx_);
+      return observable<output_type>{std::move(ptr)};
+    }
   }
 
 private:
-  explicit observable_builder(coordinator* parent) : parent_(parent) {
+  explicit observable_builder(coordinator* ctx) : ctx_(ctx) {
     // nop
   }
 
-  coordinator* parent_;
+  coordinator* ctx_;
 };
 
 } // namespace caf::flow

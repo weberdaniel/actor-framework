@@ -1,17 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
 #include "caf/flow/observable_decl.hpp"
 #include "caf/flow/observer.hpp"
 #include "caf/flow/op/cold.hpp"
+#include "caf/flow/op/empty.hpp"
 #include "caf/flow/subscription.hpp"
-#include "caf/make_counted.hpp"
 
 #include <algorithm>
-#include <deque>
 #include <memory>
 #include <tuple>
 #include <type_traits>
@@ -37,13 +36,7 @@ struct zip_input {
   using value_type = T;
 
   subscription sub;
-  std::deque<T> buf;
-
-  T pop() {
-    auto result = buf.front();
-    buf.pop_front();
-    return result;
-  }
+  std::vector<T> buf;
 
   /// Returns whether the input can no longer produce additional items.
   bool at_end() const noexcept {
@@ -61,26 +54,35 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  zip_with_sub(coordinator* parent, F fn, observer<output_type> out,
+  zip_with_sub(coordinator* ctx, F fn, observer<output_type> out,
                std::tuple<observable<Ts>...>& srcs)
-    : parent_(parent), fn_(std::move(fn)), out_(std::move(out)) {
+    : ctx_(ctx), fn_(std::move(fn)), out_(std::move(out)) {
     for_each_input([this, &srcs](auto index, auto& input) {
       using index_type = decltype(index);
       using value_type = typename std::decay_t<decltype(input)>::value_type;
       using fwd_impl = forwarder<value_type, zip_with_sub, index_type>;
-      auto fwd = parent_->add_child(std::in_place_type<fwd_impl>, this, index);
+      auto fwd = make_counted<fwd_impl>(this, index);
       std::get<index_type::value>(srcs).subscribe(fwd->as_observer());
     });
   }
 
   // -- implementation of subscription -----------------------------------------
 
-  coordinator* parent() const noexcept override {
-    return parent_;
-  }
-
   bool disposed() const noexcept override {
     return !out_;
+  }
+
+  void dispose() override {
+    if (out_) {
+      for_each_input([](auto, auto& input) {
+        if (input.sub) {
+          input.sub.dispose();
+          input.sub = nullptr;
+        }
+        input.buf.clear();
+      });
+      fin();
+    }
   }
 
   void request(size_t n) override {
@@ -134,14 +136,17 @@ public:
   template <size_t I>
   void fwd_on_subscribe(zip_index<I> index, subscription sub) {
     if (out_) {
-      if (auto& in = at(index); !in.sub) {
+      auto& in = at(index);
+      if (!in.sub) {
         if (demand_ > 0)
           sub.request(demand_);
         in.sub = std::move(sub);
-        return;
+      } else {
+        sub.dispose();
       }
+    } else {
+      sub.dispose();
     }
-    sub.cancel();
   }
 
   template <size_t I>
@@ -149,7 +154,7 @@ public:
     if (out_) {
       auto& input = at(index);
       if (input.sub)
-        input.sub.release_later();
+        input.sub = nullptr;
       if (input.buf.empty())
         fin();
     }
@@ -158,11 +163,12 @@ public:
   template <size_t I>
   void fwd_on_error(zip_index<I> index, const error& what) {
     if (out_) {
-      if (!err_)
-        err_ = what;
       auto& input = at(index);
-      if (input.sub)
-        input.sub.release_later();
+      if (input.sub) {
+        if (!err_)
+          err_ = what;
+        input.sub = nullptr;
+      }
       if (input.buf.empty())
         fin();
     }
@@ -177,30 +183,17 @@ public:
   }
 
 private:
-  void do_dispose(bool from_external) override {
-    if (!out_)
-      return;
-    for_each_input([](auto, auto& input) {
-      input.sub.cancel();
-      input.buf.clear();
-    });
-    if (from_external) {
-      if (!err_)
-        err_ = make_error(sec::disposed);
-      out_.on_error(err_);
-    } else {
-      out_.release_later();
-    }
-  }
-
   void push() {
     if (auto n = std::min(buffered(), demand_); n > 0) {
-      demand_ -= n;
-      for (size_t i = 0; i < n; ++i) {
-        fold([this](auto&... x) { out_.on_next(fn_(x.pop()...)); });
-        if (!out_) // on_next might call cancel()
-          return;
+      for (size_t index = 0; index < n; ++index) {
+        fold([this, index](auto&... x) { //
+          out_.on_next(fn_(x.buf[index]...));
+        });
       }
+      demand_ -= n;
+      for_each_input([n](auto, auto& x) { //
+        x.buf.erase(x.buf.begin(), x.buf.begin() + n);
+      });
     }
     if (at_end())
       fin();
@@ -208,18 +201,22 @@ private:
 
   void fin() {
     for_each_input([](auto, auto& input) {
-      input.sub.cancel();
+      if (input.sub) {
+        input.sub.dispose();
+        input.sub = nullptr;
+      }
       input.buf.clear();
     });
     // Set out_ to null and emit the final event.
-    if (!err_)
-      out_.on_complete();
+    auto out = std::move(out_);
+    if (err_)
+      out.on_error(err_);
     else
-      out_.on_error(err_);
+      out.on_complete();
   }
 
   /// Stores the context (coordinator) that runs this flow.
-  coordinator* parent_;
+  coordinator* ctx_;
 
   /// Reduces n inputs to 1 output.
   F fn_;
@@ -249,17 +246,16 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  zip_with(coordinator* parent, F fn, observable<Ts>... inputs)
-    : super(parent), fn_(std::move(fn)), inputs_(inputs...) {
+  zip_with(coordinator* ctx, F fn, observable<Ts>... inputs)
+    : super(ctx), fn_(std::move(fn)), inputs_(inputs...) {
     // nop
   }
 
   // -- implementation of observable<T>::impl ----------------------------------
 
   disposable subscribe(observer<output_type> out) override {
-    using sub_t = zip_with_sub<F, Ts...>;
-    auto ptr = super::parent_->add_child(std::in_place_type<sub_t>, fn_, out,
-                                         inputs_);
+    auto ptr = make_counted<zip_with_sub<F, Ts...>>(super::ctx_, fn_, out,
+                                                    inputs_);
     out.on_subscribe(subscription{ptr});
     return ptr->as_disposable();
   }
@@ -271,27 +267,5 @@ private:
   /// Stores the source observables until an observer subscribes.
   std::tuple<observable<Ts>...> inputs_;
 };
-
-/// Creates a new zip-with operator from given inputs.
-template <class F, class T0, class T1, class... Ts>
-auto make_zip_with(coordinator* parent, F fn, T0 input0, T1 input1,
-                   Ts... inputs) {
-  using output_type = zip_with_output_t<F,                        //
-                                        typename T0::output_type, //
-                                        typename T1::output_type, //
-                                        typename Ts::output_type...>;
-  using impl_t = zip_with<F,                        //
-                          typename T0::output_type, //
-                          typename T1::output_type, //
-                          typename Ts::output_type...>;
-  if (input0.valid() && input1.valid() && (inputs.valid() && ...)) {
-    auto ptr = parent->add_child(std::in_place_type<impl_t>, std::move(fn),
-                                 std::move(input0).as_observable(),
-                                 std::move(input1).as_observable(),
-                                 std::move(inputs).as_observable()...);
-    return observable<output_type>{std::move(ptr)};
-  }
-  return observable<output_type>{};
-}
 
 } // namespace caf::flow::op

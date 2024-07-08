@@ -1,25 +1,24 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/abstract_actor.hpp"
-#include "caf/actor_control_block.hpp"
-#include "caf/actor_traits.hpp"
-#include "caf/config.hpp"
-#include "caf/detail/assert.hpp"
-#include "caf/detail/comparable.hpp"
-#include "caf/detail/core_export.hpp"
-#include "caf/detail/type_traits.hpp"
-#include "caf/fwd.hpp"
-#include "caf/message.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <type_traits>
 #include <utility>
+
+#include "caf/abstract_actor.hpp"
+#include "caf/actor_control_block.hpp"
+#include "caf/actor_traits.hpp"
+#include "caf/config.hpp"
+#include "caf/detail/comparable.hpp"
+#include "caf/detail/core_export.hpp"
+#include "caf/detail/type_traits.hpp"
+#include "caf/fwd.hpp"
+#include "caf/message.hpp"
 
 namespace caf {
 
@@ -29,10 +28,8 @@ class CAF_CORE_EXPORT actor : detail::comparable<actor>,
                               detail::comparable<actor, actor_addr>,
                               detail::comparable<actor, strong_actor_ptr> {
 public:
-  // -- friends ----------------------------------------------------------------
-
+  // -- friend types that need access to private ctors
   friend class local_actor;
-  friend class abstract_actor;
 
   using signatures = none_t;
 
@@ -54,13 +51,13 @@ public:
   actor(const scoped_actor&);
 
   template <class T,
-            class = std::enable_if_t<actor_traits<T>::is_dynamically_typed>>
+            class = detail::enable_if_t<actor_traits<T>::is_dynamically_typed>>
   actor(T* ptr) : ptr_(ptr->ctrl()) {
     CAF_ASSERT(ptr != nullptr);
   }
 
   template <class T,
-            class = std::enable_if_t<actor_traits<T>::is_dynamically_typed>>
+            class = detail::enable_if_t<actor_traits<T>::is_dynamically_typed>>
   actor& operator=(intrusive_ptr<T> ptr) {
     actor tmp{std::move(ptr)};
     swap(tmp);
@@ -68,7 +65,7 @@ public:
   }
 
   template <class T,
-            class = std::enable_if_t<actor_traits<T>::is_dynamically_typed>>
+            class = detail::enable_if_t<actor_traits<T>::is_dynamically_typed>>
   actor& operator=(T* ptr) {
     actor tmp{ptr};
     swap(tmp);
@@ -159,6 +156,9 @@ private:
 
   strong_actor_ptr ptr_;
 };
+
+/// Combine `f` and `g` so that `(f*g)(x) = f(g(x))`.
+CAF_CORE_EXPORT actor operator*(actor f, actor g);
 
 /// @relates actor
 CAF_CORE_EXPORT bool operator==(const actor& lhs, abstract_actor* rhs);

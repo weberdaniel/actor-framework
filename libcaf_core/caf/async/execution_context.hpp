@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -40,7 +40,7 @@ public:
   template <class F>
   void schedule_fn(F&& what) {
     static_assert(std::is_invocable_v<F>);
-    return schedule(make_single_shot_action(std::forward<F>(what)));
+    return schedule(make_action(std::forward<F>(what)));
   }
 
   // -- lifetime management ----------------------------------------------------

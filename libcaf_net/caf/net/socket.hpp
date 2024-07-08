@@ -1,19 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/net/socket_id.hpp"
+#include <string>
+#include <system_error>
+#include <type_traits>
 
 #include "caf/config.hpp"
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/net_export.hpp"
 #include "caf/fwd.hpp"
-
-#include <string>
-#include <system_error>
-#include <type_traits>
+#include "caf/net/socket_id.hpp"
 
 namespace caf::net {
 
@@ -115,10 +114,5 @@ error CAF_NET_EXPORT shutdown_read(socket x);
 /// Disallows further writes to the socket.
 /// @relates socket
 error CAF_NET_EXPORT shutdown_write(socket x);
-
-/// Returns the socket ID of `fd`.
-inline socket_id get_socket_id(socket fd) noexcept {
-  return fd.id;
-}
 
 } // namespace caf::net

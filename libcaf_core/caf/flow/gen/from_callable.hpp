@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -16,8 +16,7 @@ class from_callable {
 public:
   using callable_res_t = std::invoke_result_t<F>;
 
-  static constexpr bool boxed_output = detail::is_optional_v<callable_res_t>
-                                       || detail::is_expected_v<callable_res_t>;
+  static constexpr bool boxed_output = detail::is_optional_v<callable_res_t>;
 
   using output_type = detail::unboxed_t<callable_res_t>;
 
@@ -36,17 +35,9 @@ public:
       if constexpr (boxed_output) {
         auto val = fn_();
         if (!val) {
-          if constexpr (detail::is_expected_v<callable_res_t>) {
-            if (const auto& err = val.error())
-              step.on_error(err, steps...);
-            else
-              step.on_complete(steps...);
-          } else {
-            step.on_complete(steps...);
-          }
+          step.on_complete(steps...);
           return;
-        }
-        if (!step.on_next(*val, steps...))
+        } else if (!step.on_next(*val, steps...))
           return;
       } else {
         if (!step.on_next(fn_(), steps...))

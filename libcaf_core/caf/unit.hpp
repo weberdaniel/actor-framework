@@ -1,12 +1,12 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/detail/comparable.hpp"
-
 #include <string>
+
+#include "caf/detail/comparable.hpp"
 
 namespace caf {
 
@@ -20,8 +20,7 @@ struct unit_t : detail::comparable<unit_t> {
 
   constexpr unit_t& operator=(const unit_t&) noexcept = default;
 
-  template <class T,
-            class = std::enable_if_t<!std::is_same_v<std::decay_t<T>, unit_t>>>
+  template <class T>
   explicit constexpr unit_t(T&&) noexcept {
     // nop
   }

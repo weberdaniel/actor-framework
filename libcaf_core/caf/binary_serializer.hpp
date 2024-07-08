@@ -1,8 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <cstddef>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 #include "caf/byte_buffer.hpp"
 #include "caf/detail/core_export.hpp"
@@ -10,11 +15,6 @@
 #include "caf/fwd.hpp"
 #include "caf/save_inspector_base.hpp"
 #include "caf/span.hpp"
-
-#include <cstddef>
-#include <string>
-#include <type_traits>
-#include <vector>
 
 namespace caf {
 
@@ -35,20 +35,10 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  explicit binary_serializer(byte_buffer& buf) noexcept
-    : buf_(buf), write_pos_(buf.size()) {
-    // nop
-  }
+  binary_serializer(actor_system& sys, byte_buffer& buf) noexcept;
 
-  binary_serializer(actor_system& sys, byte_buffer& buf) noexcept
-    : binary_serializer(buf) {
-    context_ = &sys;
-    // nop
-  }
-
-  [[deprecated("use the single-argument constructor instead")]] //
-  binary_serializer(std::nullptr_t, byte_buffer& buf) noexcept
-    : binary_serializer(buf) {
+  binary_serializer(execution_unit* ctx, byte_buffer& buf) noexcept
+    : buf_(buf), write_pos_(buf.size()), context_(ctx) {
     // nop
   }
 
@@ -59,7 +49,7 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Returns the current execution unit.
-  actor_system* context() const noexcept {
+  execution_unit* context() const noexcept {
     return context_;
   }
 
@@ -167,7 +157,7 @@ public:
   bool value(uint64_t x);
 
   template <class T>
-  std::enable_if_t<std::is_integral_v<T>, bool> value(T x) {
+  std::enable_if_t<std::is_integral<T>::value, bool> value(T x) {
     return value(static_cast<detail::squashed_int_t<T>>(x));
   }
 
@@ -192,10 +182,10 @@ private:
   byte_buffer& buf_;
 
   /// Stores the current offset for writing.
-  size_t write_pos_ = 0;
+  size_t write_pos_;
 
   /// Provides access to the ::proxy_registry and to the ::actor_system.
-  actor_system* context_ = nullptr;
+  execution_unit* context_;
 };
 
 } // namespace caf

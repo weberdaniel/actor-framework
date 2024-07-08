@@ -1,17 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include "caf/actor.hpp"
 #include "caf/deep_to_string.hpp"
-#include "caf/detail/actor_local_printer.hpp"
 #include "caf/detail/core_export.hpp"
-#include "caf/detail/format.hpp"
 #include "caf/typed_actor_pointer.hpp"
-
-#include <string>
-#include <string_view>
 
 namespace caf {
 
@@ -42,46 +38,27 @@ public:
     // nop
   }
 
-  /// Adds a new line to the actor output stream.
-  template <class... Args>
-  actor_ostream& println(std::string_view fmt, Args&&... args) {
-    auto buf = detail::format(fmt, std::forward<Args>(args)...);
-    buf.push_back('\n');
-    printer_->write(std::move(buf));
-    return *this;
-  }
-
   /// Writes `arg` to the buffer allocated for the calling actor.
-  actor_ostream& write(std::string arg) {
-    printer_->write(std::move(arg));
-    return *this;
-  }
+  actor_ostream& write(std::string arg);
 
   /// Flushes the buffer allocated for the calling actor.
-  actor_ostream& flush() {
-    printer_->flush();
-    return *this;
-  }
+  actor_ostream& flush();
 
   /// Redirects all further output from `self` to `file_name`.
-  [[deprecated]] static void redirect(abstract_actor* self, std::string fn,
-                                      int flags = 0);
+  static void redirect(abstract_actor* self, std::string fn, int flags = 0);
 
   /// Redirects all further output from any actor that did not
   /// redirect its output to `fname`.
-  [[deprecated]] static void redirect_all(actor_system& sys, std::string fn,
-                                          int flags = 0);
+  static void redirect_all(actor_system& sys, std::string fn, int flags = 0);
 
   /// Writes `arg` to the buffer allocated for the calling actor.
   actor_ostream& operator<<(const char* arg) {
-    printer_->write(arg);
-    return *this;
+    return write(arg);
   }
 
   /// Writes `arg` to the buffer allocated for the calling actor.
   actor_ostream& operator<<(std::string arg) {
-    printer_->write(std::move(arg));
-    return *this;
+    return write(std::move(arg));
   }
 
   /// Writes `to_string(arg)` to the buffer allocated for the calling actor,
@@ -89,8 +66,7 @@ public:
   /// the argument.
   template <class T>
   actor_ostream& operator<<(const T& arg) {
-    printer_->write(deep_to_string(arg));
-    return *this;
+    return write(deep_to_string(arg));
   }
 
   /// Apply `f` to `*this`.
@@ -99,17 +75,20 @@ public:
   }
 
 private:
-  detail::actor_local_printer_ptr printer_;
+  void init(abstract_actor*);
+
+  actor_id self_;
+  actor printer_;
 };
 
-[[deprecated("use println instead")]]
+/// Convenience factory function for creating an actor output stream.
 CAF_CORE_EXPORT actor_ostream aout(local_actor* self);
 
-[[deprecated("use println instead")]]
+// Convenience factory function for creating an actor output stream.
 CAF_CORE_EXPORT actor_ostream aout(scoped_actor& self);
 
+/// Convenience factory function for creating an actor output stream.
 template <class... Sigs>
-[[deprecated("use println instead")]]
 actor_ostream aout(const typed_actor_pointer<Sigs...>& ptr) {
   return actor_ostream{ptr};
 }

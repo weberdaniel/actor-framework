@@ -1,3 +1,1 @@
-docutils
 gitpython
-sphinx_rtd_theme

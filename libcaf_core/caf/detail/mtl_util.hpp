@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/actor.hpp"
-#include "caf/fwd.hpp"
-#include "caf/type_list.hpp"
-
 #include <type_traits>
+
+#include "caf/actor.hpp"
+#include "caf/detail/type_list.hpp"
+#include "caf/fwd.hpp"
 
 namespace caf::detail {
 
@@ -22,7 +22,7 @@ struct mtl_util<result<Rs...>(Ts...)> {
   send(Self& self, const actor& dst, Adapter& adapter, Inspector& f, Ts... xs) {
     f.revert();
     if (adapter.read(f, xs...)) {
-      self->mail(std::move(xs)...).send(dst);
+      self->send(dst, std::move(xs)...);
       return true;
     } else {
       return false;
@@ -42,14 +42,12 @@ struct mtl_util<result<Rs...>(Ts...)> {
                       OnError& on_error, Ts... xs) {
     f.revert();
     if (adapter.read(f, xs...)) {
-      if constexpr (std::is_same_v<type_list<Rs...>, type_list<void>>)
-        self->mail(std::move(xs)...)
-          .request(dst, timeout)
+      if constexpr (std::is_same<type_list<Rs...>, type_list<void>>::value)
+        self->request(dst, timeout, std::move(xs)...)
           .then([f{std::move(on_result)}]() mutable { f(); },
                 std::move(on_error));
       else
-        self->mail(std::move(xs)...)
-          .request(dst, timeout)
+        self->request(dst, timeout, std::move(xs)...)
           .then([f{std::move(on_result)}](Rs&... res) mutable { f(res...); },
                 std::move(on_error));
       return true;

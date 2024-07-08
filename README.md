@@ -1,32 +1,23 @@
+# CAF: the C++ Actor Framework
+
+CAF is an open source implementation of the actor model for C++ featuring
+lightweight & fast actor implementations, pattern matching for messages, network
+transparent messaging, and more.
+
 [![Gitter][gitter-badge]](https://gitter.im/actor-framework/chat)
+[![Jenkins][jenkins-badge]](https://jenkins.inet.haw-hamburg.de/job/CAF/job/actor-framework/job/master)
 [![Documentation Status][docs-badge]](http://actor-framework.readthedocs.io/en/latest/?badge=latest)
-[![Coverage][coverage-badge]](https://codecov.io/gh/actor-framework/actor-framework)
-
-# What is CAF?
-
-CAF is an open source framework that offers a programming environment based on
-the [Actor Model](https://en.wikipedia.org/wiki/Actor_model) of computation
-combined with a [scalable](https://dl.acm.org/doi/10.1145/2541329.2541336),
-[native](https://www.sciencedirect.com/science/article/abs/pii/S1477842416000038)
-runtime environment that lets you build applications at a high level of
-abstraction without sacrificing performance. Whether you are targeting a single
-machine, a data center, or the cloud, CAF provides the necessary tools to
-implement robust, scalable, and maintainable software.
-
-CAF features lightweight & fast actor implementations, data flows, HTTP and
-WebSocket support, pattern matching for messages, metrics, distributed actors,
-and more. Professional support, training, and consulting are available from
-[Interance](https://www.interance.io), the company behind CAF.
+[![Language grade: C/C++][lgtm-badge]](https://lgtm.com/projects/g/actor-framework/actor-framework/context:cpp)
 
 ## Online Resources
 
 * __Homepage__: https://www.actor-framework.org
-* __Guides and Tutorials__: https://www.interance.io/learning
-* __Manual__: https://actor-framework.readthedocs.io
-* __Doxygen__: https://www.actor-framework.org/doxygen
 * __Developer Blog__: https://www.actor-framework.org/blog
+* __Guides and Tutorials__: https://www.cafcademy.com/articles
+* __Manual__: https://actor-framework.readthedocs.io
+* __Doxygen__: https://codedocs.xyz/actor-framework/actor-framework
 
-## Report Bugs and Get Help
+## Report Bugs / Get Help
 
 * __Open Issues on GitHub__: https://github.com/actor-framework/actor-framework/issues/new
 * __Ask Questions on StackOverflow__: https://stackoverflow.com/questions/ask?tags=c%2b%2b-actor-framework
@@ -34,19 +25,20 @@ and more. Professional support, training, and consulting are available from
 ## Community
 
 * __Chat__: https://gitter.im/actor-framework/chat
-* __Mastodon__: https://fosstodon.org/@caf
 * __Twitter__: https://twitter.com/actor_framework
-* __Mailing List__: https://groups.google.com/d/forum/actor-framework
+* __User Mailing List__: https://groups.google.com/d/forum/actor-framework
 
 ## Get CAF
 
-We do not officially maintain packages for CAF. However, some of our community
-members made packages available for these package managers:
+We currently officially maintain only the CAF package available on
+[Homebrew](https://formulae.brew.sh/formula/caf).
+
+More package managers are supported by community members:
 
 - [Conan](https://conan.io/center/caf)
 - [FreeBSD Ports](https://svnweb.freebsd.org/ports/head/devel/caf)
-- [Homebrew](https://formulae.brew.sh/formula/caf).
 - [VCPKG](https://github.com/microsoft/vcpkg/tree/master/ports/caf)
+
 
 ## Get the Sources
 
@@ -81,23 +73,25 @@ make install [as root, optional]
 ### Using CMake
 
 To generate a Makefile for building CAF with default settings, either use a
-CMake GUI or perform this step on the command line:
+CMake GUI or perform these steps on the command line:
 
 ```sh
-cmake -S <path-to-caf-sources> -B build
+mkdir build
+cd build
+cmake ..
 ```
 
 After this step, `cmake -LH` prints the most useful configuration options for
 CAF, their default value, and a helptext.
 
 Other CMake projects can add CAF as a dependency by using `find_package` and
-listing the required modules (e.g., `core` or `net`) . When installing CAF to a
+listing the required modules (e.g., `core` or `io`) . When installing CAF to a
 non-standard location, set `CAF_ROOT` prior to calling `find_package`.
 
 ## Dependencies
 
 * CMake (for building CAF)
-* OpenSSL (when building the `openssl` or `net` module)
+* OpenSSL (only when building the OpenSSL module)
 
 ## Supported Platforms
 
@@ -114,7 +108,7 @@ our CI is "fair game".
 
 Our CI covers Windows (latest MSVC release), macOS (latest Xcode release),
 FreeBSD (latest) and several Linux distributions (via the Docker images found
-[here](https://github.com/actor-framework/actor-framework/tree/main/.ci)). For
+[here](https://github.com/actor-framework/actor-framework/tree/master/.ci)). For
 Linux, we aim to support the current releases (that still receive active
 support) for the major distributions. Note that we do not build on Linux
 distributions with rolling releases, because they generally provide more recent
@@ -164,8 +158,18 @@ If you use CAF in a scientific context, please use one of the following citation
 You can find the papers online at http://dx.doi.org/10.1145/2541329.2541336 and
 http://dx.doi.org/10.1016/j.cl.2016.01.002.
 
+[obs]: https://software.opensuse.org/download.html?project=devel%3Alibraries%3Acaf&package=caf
+
+[obs-nightly]: https://software.opensuse.org/download.html?project=devel%3Alibraries%3Acaf%3Anightly&package=caf
+
+[obs-dev]: https://software.opensuse.org/download.html?project=devel%3Alibraries%3Acaf&package=caf-devel
+
+[obs-dev-nightly]: https://software.opensuse.org/download.html?project=devel%3Alibraries%3Acaf%3Anightly&package=caf-devel
+
+[jenkins-badge]: https://jenkins.inet.haw-hamburg.de/buildStatus/icon?job=CAF/actor-framework/master
+
 [docs-badge]: https://readthedocs.org/projects/actor-framework/badge/?version=latest
 
-[gitter-badge]: https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg
+[lgtm-badge]: https://img.shields.io/lgtm/grade/cpp/g/actor-framework/actor-framework.svg?logo=lgtm&logoWidth=18
 
-[coverage-badge]: https://codecov.io/gh/actor-framework/actor-framework/graph/badge.svg?token=SjJQQ5dCbV
+[gitter-badge]: https://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg

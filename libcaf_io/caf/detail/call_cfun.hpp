@@ -1,17 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/io/network/native_socket.hpp"
-
-#include "caf/error.hpp"
-#include "caf/format_to_error.hpp"
-#include "caf/sec.hpp"
-
 #include <cstdio>
 #include <cstdlib>
+
+#include "caf/error.hpp"
+#include "caf/io/network/native_socket.hpp"
+#include "caf/sec.hpp"
 
 namespace caf::detail {
 
@@ -39,8 +37,8 @@ inline bool cc_valid_socket(caf::io::network::native_socket fd) {
 #define CALL_CFUN(var, predicate, fun_name, expr)                              \
   auto var = expr;                                                             \
   if (!predicate(var))                                                         \
-  return format_to_error(sec::network_syscall_failed, "{}: {}", fun_name,      \
-                         last_socket_error_as_string())
+  return make_error(sec::network_syscall_failed, fun_name,                     \
+                    last_socket_error_as_string())
 
 /// Calls a C functions and calls exit() if `predicate(var)` returns false.
 #define CALL_CRITICAL_CFUN(var, predicate, funname, expr)                      \

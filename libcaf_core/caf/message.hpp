@@ -1,10 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/detail/assert.hpp"
+#include <sstream>
+#include <tuple>
+#include <type_traits>
+
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/detail/implicit_conversions.hpp"
@@ -13,17 +16,6 @@
 #include "caf/fwd.hpp"
 #include "caf/intrusive_cow_ptr.hpp"
 #include "caf/raise_error.hpp"
-#include "caf/type_id.hpp"
-
-#include <sstream>
-#include <tuple>
-#include <type_traits>
-
-namespace caf::detail {
-
-class stringification_inspector;
-
-} // namespace caf::detail
 
 namespace caf {
 
@@ -74,10 +66,6 @@ public:
 
   size_t empty() const noexcept {
     return size() == 0;
-  }
-
-  bool unique() const noexcept {
-    return data_ && data_->unique();
   }
 
   template <class... Ts>
@@ -137,8 +125,6 @@ public:
 
   bool save(binary_serializer& sink) const;
 
-  bool save(detail::stringification_inspector& sink) const;
-
   bool load(deserializer& source);
 
   bool load(binary_deserializer& source);
@@ -195,7 +181,7 @@ public:
 private:
   template <size_t Pos, class T>
   bool matches_at(const T& value) const {
-    if constexpr (std::is_same_v<T, decltype(std::ignore)>)
+    if constexpr (std::is_same<T, decltype(std::ignore)>::value)
       return true;
     else
       return match_element<T>(Pos) && get_as<T>(Pos) == value;
@@ -220,7 +206,7 @@ inline message make_message() {
 template <class... Ts>
 message make_message(Ts&&... xs) {
   using namespace detail;
-  static_assert((!std::is_pointer_v<strip_and_convert_t<Ts>> && ...));
+  static_assert((!std::is_pointer<strip_and_convert_t<Ts>>::value && ...));
   static_assert((is_complete<type_id<strip_and_convert_t<Ts>>> && ...));
   static constexpr size_t data_size
     = sizeof(message_data) + (padded_size_v<strip_and_convert_t<Ts>> + ...);
@@ -234,20 +220,6 @@ message make_message(Ts&&... xs) {
   return message{std::move(ptr)};
 }
 
-/// Same as `make_message` except when called with a single `message` argument.
-/// In the latter case, simply returns the `message` instead of wrapping it into
-/// another message.
-/// @relates message
-template <class T, class... Ts>
-message make_message_nowrap(T&& arg, Ts&&... args) {
-  if constexpr (sizeof...(Ts) == 0
-                && std::is_same_v<std::decay_t<T>, message>) {
-    return std::forward<T>(arg);
-  } else {
-    return make_message(std::forward<T>(arg), std::forward<Ts>(args)...);
-  }
-}
-
 /// @relates message
 template <class Tuple, size_t... Is>
 message make_message_from_tuple(Tuple&& xs, std::index_sequence<Is...>) {
@@ -258,7 +230,7 @@ message make_message_from_tuple(Tuple&& xs, std::index_sequence<Is...>) {
 template <class Tuple>
 message make_message_from_tuple(Tuple&& xs) {
   using tuple_type = std::decay_t<Tuple>;
-  std::make_index_sequence<std::tuple_size_v<tuple_type>> seq;
+  std::make_index_sequence<std::tuple_size<tuple_type>::value> seq;
   return make_message_from_tuple(std::forward<Tuple>(xs), seq);
 }
 

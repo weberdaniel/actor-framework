@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/message.hpp"
-#include "caf/response_promise.hpp"
-#include "caf/type_list.hpp"
-
 #include <type_traits>
+
+#include "caf/detail/type_list.hpp"
+#include "caf/make_message.hpp"
+#include "caf/response_promise.hpp"
 
 namespace caf {
 
@@ -22,6 +22,10 @@ public:
   // -- friends ----------------------------------------------------------------
 
   friend class local_actor;
+
+  // -- member types -----------------------------------------------------------
+
+  using forwarding_stack = response_promise::forwarding_stack;
 
   // -- constructors, destructors, and assignment operators --------------------
 
@@ -52,6 +56,16 @@ public:
     return promise_.source();
   }
 
+  /// @copydoc response_promise::stages
+  forwarding_stack stages() const {
+    return promise_.stages();
+  }
+
+  /// @copydoc response_promise::next
+  strong_actor_ptr next() const {
+    return promise_.next();
+  }
+
   /// @copydoc response_promise::id
   message_id id() const {
     return promise_.id();
@@ -61,13 +75,14 @@ public:
 
   /// Satisfies the promise by sending a non-error response message.
   template <class... Us>
-  std::enable_if_t<(std::is_constructible_v<Ts, Us> && ...)> deliver(Us... xs) {
+  std::enable_if_t<(std::is_constructible<Ts, Us>::value && ...)>
+  deliver(Us... xs) {
     promise_.deliver(Ts{std::forward<Us>(xs)}...);
   }
 
   /// Satisfies the promise by sending an empty response message.
-  template <class L = type_list<Ts...>>
-  std::enable_if_t<std::is_same_v<L, type_list<void>>> deliver() {
+  template <class L = detail::type_list<Ts...>>
+  std::enable_if_t<std::is_same<L, detail::type_list<void>>::value> deliver() {
     promise_.deliver();
   }
 
@@ -80,7 +95,8 @@ public:
   /// Satisfies the promise by sending either an error or a non-error response
   /// message.
   template <class T>
-  std::enable_if_t<std::is_same_v<type_list<T>, type_list<Ts...>>>
+  std::enable_if_t<
+    std::is_same<detail::type_list<T>, detail::type_list<Ts...>>::value>
   deliver(expected<T> x) {
     promise_.deliver(std::move(x));
   }
@@ -98,8 +114,8 @@ private:
   // -- constructors that are visible only to friends --------------------------
 
   typed_response_promise(local_actor* self, strong_actor_ptr source,
-                         message_id id)
-    : promise_(self, std::move(source), id) {
+                         forwarding_stack stages, message_id id)
+    : promise_(self, std::move(source), std::move(stages), id) {
     // nop
   }
 

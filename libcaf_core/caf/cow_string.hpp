@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -77,11 +77,6 @@ public:
   /// Returns whether the reference count of the managed object is 1.
   [[nodiscard]] bool unique() const noexcept {
     return impl_->unique();
-  }
-
-  /// Queries the current reference count for this object.
-  size_t get_reference_count() const noexcept {
-    return impl_->get_reference_count();
   }
 
   [[nodiscard]] bool empty() const noexcept {

@@ -1,21 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/net/http/method.hpp"
-#include "caf/net/http/status.hpp"
-
 #include "caf/byte_span.hpp"
 #include "caf/detail/net_export.hpp"
+#include "caf/net/http/header_fields_map.hpp"
+#include "caf/net/http/status.hpp"
 
 #include <string_view>
 #include <utility>
 
 namespace caf::net::http::v1 {
-
-using string_view_pair = std::pair<std::string_view, std::string_view>;
 
 /// Tries splitting the given byte span into an HTTP header (`first`) and a
 /// remainder (`second`). Returns an empty `string_view` as `first` for
@@ -24,16 +21,11 @@ CAF_NET_EXPORT std::pair<std::string_view, byte_span>
 split_header(byte_span bytes);
 
 /// Writes an HTTP header to @p buf.
-CAF_NET_EXPORT void write_response_header(status code,
-                                          span<const string_view_pair> fields,
-                                          byte_buffer& buf);
+CAF_NET_EXPORT void write_header(status code, const header_fields_map& fields,
+                                 byte_buffer& buf);
 
 /// Write the status code for an HTTP header to @p buf.
-CAF_NET_EXPORT void begin_response_header(status code, byte_buffer& buf);
-
-/// Write the status code for an HTTP header to @p buf.
-void begin_request_header(http::method method, std::string_view path,
-                          byte_buffer& buf);
+CAF_NET_EXPORT void begin_header(status code, byte_buffer& buf);
 
 /// Write a header field to @p buf.
 CAF_NET_EXPORT void add_header_field(std::string_view key, std::string_view val,
@@ -51,7 +43,7 @@ CAF_NET_EXPORT void write_response(status code, std::string_view content_type,
 /// and Content-Length header fields followed by the user-defined @p fields.
 CAF_NET_EXPORT void write_response(status code, std::string_view content_type,
                                    std::string_view content,
-                                   span<const string_view_pair> fields,
+                                   const header_fields_map& fields,
                                    byte_buffer& buf);
 
 } // namespace caf::net::http::v1

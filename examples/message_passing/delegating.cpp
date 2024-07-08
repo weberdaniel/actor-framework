@@ -1,21 +1,9 @@
-// This example illustrates how to use the `delegate` function to forward
-// messages to another actor.
-
-#include "caf/actor_from_state.hpp"
-#include "caf/actor_ostream.hpp"
-#include "caf/actor_system.hpp"
-#include "caf/caf_main.hpp"
-#include "caf/typed_actor.hpp"
-#include "caf/typed_event_based_actor.hpp"
+#include "caf/all.hpp"
 
 using namespace caf;
-using namespace std::literals;
 
 // --(rst-delegate-begin)--
-struct adder_trait {
-  using signatures = type_list<result<int32_t>(add_atom, int32_t, int32_t)>;
-};
-using adder_actor = typed_actor<adder_trait>;
+using adder_actor = typed_actor<result<int32_t>(add_atom, int32_t, int32_t)>;
 
 adder_actor::behavior_type worker_impl() {
   return {
@@ -25,16 +13,17 @@ adder_actor::behavior_type worker_impl() {
 adder_actor::behavior_type server_impl(adder_actor::pointer self,
                                        adder_actor worker) {
   return {
-    [self, worker](add_atom add, int32_t x, int32_t y) {
-      return self->mail(add, x, y).delegate(worker);
+    [=](add_atom add, int32_t x, int32_t y) {
+      return self->delegate(worker, add, x, y);
     },
   };
 }
 
 void client_impl(event_based_actor* self, adder_actor adder, int32_t x,
                  int32_t y) {
-  self->mail(add_atom_v, x, y).request(adder, 10s).then([=](int32_t result) {
-    self->println("{} + {} = {}", x, y, result);
+  using namespace std::literals::chrono_literals;
+  self->request(adder, 10s, add_atom_v, x, y).then([=](int32_t result) {
+    aout(self) << x << " + " << y << " = " << result << std::endl;
   });
 }
 

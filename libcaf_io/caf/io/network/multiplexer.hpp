@@ -1,35 +1,34 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include <functional>
+#include <string>
+#include <thread>
+
+#include "caf/detail/io_export.hpp"
+#include "caf/execution_unit.hpp"
+#include "caf/expected.hpp"
+#include "caf/extend.hpp"
 #include "caf/io/accept_handle.hpp"
 #include "caf/io/connection_handle.hpp"
 #include "caf/io/fwd.hpp"
 #include "caf/io/network/ip_endpoint.hpp"
 #include "caf/io/network/native_socket.hpp"
 #include "caf/io/network/protocol.hpp"
-
-#include "caf/detail/io_export.hpp"
-#include "caf/expected.hpp"
-#include "caf/extend.hpp"
 #include "caf/make_counted.hpp"
 #include "caf/resumable.hpp"
-#include "caf/scheduler.hpp"
-
-#include <functional>
-#include <string>
-#include <thread>
 
 namespace caf::io::network {
 
 class multiplexer_backend;
 
 /// Low-level backend for IO multiplexing.
-class CAF_IO_EXPORT multiplexer : public scheduler {
+class CAF_IO_EXPORT multiplexer : public execution_unit {
 public:
-  explicit multiplexer(actor_system& sys);
+  explicit multiplexer(actor_system* sys);
 
   /// Creates a new `scribe` from a native socket handle.
   /// @threadsafe
@@ -48,9 +47,9 @@ public:
   /// Tries to create an unbound TCP doorman bound to `port`, optionally
   /// accepting only connections from IP address `in`.
   /// @warning Do not call from outside the multiplexer's event loop.
-  virtual expected<doorman_ptr> new_tcp_doorman(uint16_t port,
-                                                const char* in = nullptr,
-                                                bool reuse_addr = false)
+  virtual expected<doorman_ptr>
+  new_tcp_doorman(uint16_t port, const char* in = nullptr,
+                  bool reuse_addr = false)
     = 0;
 
   /// Creates a new `datagram_servant` from a native socket handle.
@@ -78,9 +77,9 @@ public:
   /// Simple wrapper for runnables
   class CAF_IO_EXPORT runnable : public resumable, public ref_counted {
   public:
-    subtype_t subtype() const noexcept final;
-    void ref_resumable() const noexcept final;
-    void deref_resumable() const noexcept final;
+    subtype_t subtype() const override;
+    void intrusive_ptr_add_ref_impl() override;
+    void intrusive_ptr_release_impl() override;
   };
 
   /// Makes sure the multiplier does not exit its event loop until
@@ -98,7 +97,7 @@ public:
   /// Creates an instance using the networking backend compiled with CAF.
   static std::unique_ptr<multiplexer> make(actor_system& sys);
 
-  /// Executes all pending events without blocking.
+  /// Exectutes all pending events without blocking.
   /// @returns `true` if at least one event was called, `false` otherwise.
   virtual bool try_run_once() = 0;
 
@@ -129,12 +128,12 @@ public:
       F f;
       impl(F&& mf) : f(std::move(mf)) {
       }
-      resume_result resume(scheduler*, size_t) override {
+      resume_result resume(execution_unit*, size_t) override {
         f();
         return done;
       }
     };
-    delay(new impl(std::move(fun)));
+    exec_later(new impl(std::move(fun)));
   }
 
   /// Retrieves a pointer to the implementation or `nullptr` if CAF was
@@ -149,21 +148,10 @@ public:
     tid_ = std::move(tid);
   }
 
-  actor_system& system() {
-    return *sys_;
-  }
-
-  void start() override;
-
-  void stop() override;
-
 protected:
   /// Identifies the thread this multiplexer
   /// is running in. Must be set by the subclass.
   std::thread::id tid_;
-
-  /// Stores the actor system this multiplexer is part of.
-  actor_system* sys_;
 };
 
 using multiplexer_ptr = std::unique_ptr<multiplexer>;

@@ -1,17 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/net/fwd.hpp"
-#include "caf/net/network_socket.hpp"
+#include <cstddef>
 
 #include "caf/byte_span.hpp"
 #include "caf/detail/net_export.hpp"
 #include "caf/fwd.hpp"
-
-#include <cstddef>
+#include "caf/net/network_socket.hpp"
 
 // Note: This API mostly wraps platform-specific functions that return ssize_t.
 // We return ptrdiff_t instead, since only POSIX defines ssize_t and the two
@@ -22,11 +20,7 @@ namespace caf::net {
 /// A connection-oriented network communication endpoint for bidirectional byte
 /// streams.
 struct CAF_NET_EXPORT stream_socket : network_socket {
-  /// The parent type.
   using super = network_socket;
-
-  /// The default transport for exchanging raw bytes over a stream socket.
-  using transport_type = octet_stream::transport;
 
   using super::super;
 
@@ -50,7 +44,7 @@ error CAF_NET_EXPORT keepalive(stream_socket x, bool new_value);
 error CAF_NET_EXPORT nodelay(stream_socket x, bool new_value);
 
 /// Receives data from `x`.
-/// @param x A connected socket.
+/// @param x A connected endpoint.
 /// @param buf Points to destination buffer.
 /// @returns The number of received bytes on success, 0 if the socket is closed,
 ///          or -1 in case of an error.

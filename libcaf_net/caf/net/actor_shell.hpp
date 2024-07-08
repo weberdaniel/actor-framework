@@ -1,21 +1,17 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/net/abstract_actor_shell.hpp"
-#include "caf/net/fwd.hpp"
-
 #include "caf/actor_traits.hpp"
 #include "caf/detail/net_export.hpp"
-#include "caf/dynamically_typed.hpp"
-#include "caf/event_based_mail.hpp"
 #include "caf/extend.hpp"
-#include "caf/flow/coordinator.hpp"
 #include "caf/fwd.hpp"
 #include "caf/mixin/requester.hpp"
 #include "caf/mixin/sender.hpp"
+#include "caf/net/abstract_actor_shell.hpp"
+#include "caf/net/fwd.hpp"
 #include "caf/none.hpp"
 
 namespace caf::net {
@@ -33,7 +29,8 @@ public:
 
   // -- member types -----------------------------------------------------------
 
-  using super = extended_base;
+  using super = extend<abstract_actor_shell,
+                       actor_shell>::with<mixin::sender, mixin::requester>;
 
   using signatures = none_t;
 
@@ -41,7 +38,7 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  using super::super;
+  actor_shell(actor_config& cfg, async::execution_context_ptr loop);
 
   ~actor_shell() override;
 
@@ -51,15 +48,6 @@ public:
   template <class... Fs>
   void set_behavior(Fs... fs) {
     set_behavior_impl(behavior{std::move(fs)...});
-  }
-
-  // -- messaging --------------------------------------------------------------
-
-  /// Starts a new message.
-  template <class... Args>
-  auto mail(Args&&... args) {
-    return event_based_mail(dynamically_typed{}, this,
-                            std::forward<Args>(args)...);
   }
 
   // -- overridden functions of local_actor ------------------------------------
@@ -74,7 +62,8 @@ public:
   // -- friends ----------------------------------------------------------------
 
   template <class Handle>
-  friend actor_shell_ptr_t<Handle> make_actor_shell(socket_manager*);
+  friend actor_shell_ptr_t<Handle>
+  make_actor_shell(actor_system&, async::execution_context_ptr);
 
   // -- member types -----------------------------------------------------------
 

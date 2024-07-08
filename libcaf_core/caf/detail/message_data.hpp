@@ -1,8 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <atomic>
+#include <cstddef>
+#include <cstdlib>
+#include <new>
 
 #include "caf/config.hpp"
 #include "caf/detail/core_export.hpp"
@@ -10,11 +15,6 @@
 #include "caf/detail/padded_size.hpp"
 #include "caf/fwd.hpp"
 #include "caf/type_id_list.hpp"
-
-#include <atomic>
-#include <cstddef>
-#include <cstdlib>
-#include <new>
 
 #ifdef CAF_CLANG
 #  pragma clang diagnostic push

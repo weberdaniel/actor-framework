@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -9,7 +9,6 @@
 #include "caf/async/producer.hpp"
 #include "caf/config.hpp"
 #include "caf/defaults.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/error.hpp"
 #include "caf/intrusive_ptr.hpp"
 #include "caf/make_counted.hpp"
@@ -42,17 +41,8 @@ public:
 
   using lock_type = std::unique_lock<std::mutex>;
 
-  /// Packs various status flags for the buffer into a single struct.
-  struct flags {
-    /// Stores whether `close` has been called.
-    bool closed : 1;
-    /// Stores whether `cancel` has been called.
-    bool canceled : 1;
-  };
-
   spsc_buffer(uint32_t capacity, uint32_t min_pull_size)
     : capacity_(capacity), min_pull_size_(min_pull_size) {
-    memset(&flags_, 0, sizeof(flags));
     // Allocate some extra space in the buffer in case the producer goes beyond
     // the announced capacity.
     buf_.reserve(capacity + (capacity / 2));
@@ -68,7 +58,7 @@ public:
   size_t push(span<const T> items) {
     lock_type guard{mtx_};
     CAF_ASSERT(producer_ != nullptr);
-    CAF_ASSERT(!flags_.closed);
+    CAF_ASSERT(!closed_);
     buf_.insert(buf_.end(), items.begin(), items.end());
     if (buf_.size() == items.size() && consumer_)
       consumer_->on_producer_wakeup();
@@ -105,7 +95,7 @@ public:
   /// closed or aborted the flow.
   bool has_consumer_event() const noexcept {
     lock_type guard{mtx_};
-    return !buf_.empty() || flags_.closed;
+    return !buf_.empty() || closed_;
   }
 
   /// Returns how many items are currently available. This may be greater than
@@ -124,15 +114,21 @@ public:
 
   /// Closes the buffer by request of the producer.
   void close() {
-    abort(error{});
+    lock_type guard{mtx_};
+    if (producer_) {
+      closed_ = true;
+      producer_ = nullptr;
+      if (buf_.empty() && consumer_)
+        consumer_->on_producer_wakeup();
+    }
   }
 
   /// Closes the buffer by request of the producer and signals an error to the
   /// consumer.
   void abort(error reason) {
     lock_type guard{mtx_};
-    if (!flags_.closed) {
-      flags_.closed = true;
+    if (producer_) {
+      closed_ = true;
       err_ = std::move(reason);
       producer_ = nullptr;
       if (buf_.empty() && consumer_)
@@ -143,8 +139,7 @@ public:
   /// Closes the buffer by request of the consumer.
   void cancel() {
     lock_type guard{mtx_};
-    if (!flags_.canceled) {
-      flags_.canceled = true;
+    if (consumer_) {
       consumer_ = nullptr;
       if (producer_)
         producer_->on_consumer_cancel();
@@ -156,12 +151,10 @@ public:
     CAF_ASSERT(consumer != nullptr);
     lock_type guard{mtx_};
     if (consumer_)
-      CAF_RAISE_ERROR(std::logic_error, "SPSC buffer already has a consumer");
+      CAF_RAISE_ERROR("SPSC buffer already has a consumer");
     consumer_ = std::move(consumer);
     if (producer_)
       ready();
-    else if (flags_.closed)
-      consumer_->on_producer_wakeup();
   }
 
   /// Producer callback for the initial handshake between producer and consumer.
@@ -169,12 +162,10 @@ public:
     CAF_ASSERT(producer != nullptr);
     lock_type guard{mtx_};
     if (producer_)
-      CAF_RAISE_ERROR(std::logic_error, "SPSC buffer already has a producer");
+      CAF_RAISE_ERROR("SPSC buffer already has a producer");
     producer_ = std::move(producer);
     if (consumer_)
       ready();
-    else if (flags_.canceled)
-      producer_->on_consumer_cancel();
   }
 
   /// Returns the capacity as passed to the constructor of the buffer.
@@ -204,7 +195,7 @@ public:
   /// Blocks until there is at least one item available or the producer stopped.
   /// @pre the consumer calls `cv.notify_all()` in its `on_producer_wakeup`
   void await_consumer_ready(lock_type& guard, std::condition_variable& cv) {
-    while (!flags_.closed && buf_.empty()) {
+    while (!closed_ && buf_.empty()) {
       cv.wait(guard);
     }
   }
@@ -215,7 +206,7 @@ public:
   template <class TimePoint>
   bool await_consumer_ready(lock_type& guard, std::condition_variable& cv,
                             TimePoint timeout) {
-    while (!flags_.closed && buf_.empty())
+    while (!closed_ && buf_.empty())
       if (cv.wait_until(guard, timeout) == std::cv_status::timeout)
         return false;
     return true;
@@ -257,15 +248,16 @@ public:
       guard.lock();
       overflow = buf_.size() <= capacity_ ? 0u : buf_.size() - capacity_;
     }
-    if (!buf_.empty() || !flags_.closed) {
+    if (!buf_.empty() || !closed_) {
       return {true, consumed};
+    } else {
+      consumer_ = nullptr;
+      if (err_)
+        dst.on_error(err_);
+      else
+        dst.on_complete();
+      return {false, consumed};
     }
-    consumer_ = nullptr;
-    if (!err_)
-      dst.on_complete();
-    else
-      dst.on_error(err_);
-    return {false, consumed};
   }
 
 private:
@@ -306,7 +298,7 @@ private:
   uint32_t demand_ = 0;
 
   /// Stores whether `close` has been called.
-  flags flags_;
+  bool closed_ = false;
 
   /// Stores the abort reason.
   error err_;
@@ -338,7 +330,7 @@ struct resource_ctrl : ref_counted {
     if (buf) {
       if constexpr (IsProducer) {
         auto err = make_error(sec::disposed,
-                              "destroyed producer_resource without opening it");
+                              "producer_resource destroyed without opening it");
         buf->abort(err);
       } else {
         buf->cancel();
@@ -347,12 +339,13 @@ struct resource_ctrl : ref_counted {
   }
 
   buffer_ptr try_open() {
-    auto res = buffer_ptr{};
     std::unique_lock guard{mtx};
     if (buf) {
+      auto res = buffer_ptr{};
       res.swap(buf);
+      return res;
     }
-    return res;
+    return nullptr;
   }
 
   mutable std::mutex mtx;
@@ -417,26 +410,8 @@ public:
       buf->cancel();
   }
 
-  [[nodiscard]] bool valid() const noexcept {
-    return ctrl_ != nullptr;
-  }
-
   explicit operator bool() const noexcept {
-    return valid();
-  }
-
-  bool operator!() const noexcept {
-    return !valid();
-  }
-
-  friend bool operator==(const consumer_resource& lhs,
-                         const consumer_resource& rhs) {
-    return lhs.ctrl_ == rhs.ctrl_;
-  }
-
-  friend bool operator!=(const consumer_resource& lhs,
-                         const consumer_resource& rhs) {
-    return lhs.ctrl_ != rhs.ctrl_;
+    return ctrl_ != nullptr;
   }
 
 private:
@@ -493,32 +468,8 @@ public:
       buf->close();
   }
 
-  /// Calls `try_open` and on success immediately calls `abort` on the buffer.
-  void abort(error reason) {
-    if (auto buf = try_open())
-      buf->abort(std::move(reason));
-  }
-
-  [[nodiscard]] bool valid() const noexcept {
-    return ctrl_ != nullptr;
-  }
-
   explicit operator bool() const noexcept {
-    return valid();
-  }
-
-  bool operator!() const noexcept {
-    return !valid();
-  }
-
-  friend bool operator==(const producer_resource& lhs,
-                         const producer_resource& rhs) {
-    return lhs.ctrl_ == rhs.ctrl_;
-  }
-
-  friend bool operator!=(const producer_resource& lhs,
-                         const producer_resource& rhs) {
-    return lhs.ctrl_ != rhs.ctrl_;
+    return ctrl_ != nullptr;
   }
 
 private:

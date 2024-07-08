@@ -1,10 +1,2 @@
 [files]
-extend-exclude = ["*.pem", "libcaf_net/test/pem.cpp", "Jenkinsfile"]
-
-[default.extend-words]
-PN = "PN"
-Yout = "Yout"
-aout = "aout"
-caf = "caf"
-ws = "ws"
-fals = "fals"
+extend-exclude = ["*.pem", "libcaf_net/test/pem.cpp"]

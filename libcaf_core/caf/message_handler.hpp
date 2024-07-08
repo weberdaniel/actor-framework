@@ -1,8 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <list>
+#include <memory>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "caf/behavior.hpp"
 #include "caf/detail/behavior_impl.hpp"
@@ -14,12 +20,6 @@
 #include "caf/none.hpp"
 #include "caf/ref_counted.hpp"
 #include "caf/timeout_definition.hpp"
-
-#include <list>
-#include <memory>
-#include <type_traits>
-#include <utility>
-#include <vector>
 
 namespace caf {
 
@@ -61,8 +61,10 @@ public:
   template <class... Ts>
   void assign(Ts... xs) {
     static_assert(sizeof...(Ts) > 0, "assign without arguments called");
-    static_assert(!(may_have_timeout_v<std::decay_t<Ts>> || ...),
-                  "Timeouts are only allowed in behaviors");
+    static_assert(
+      !detail::disjunction<
+        may_have_timeout<typename std::decay<Ts>::type>::value...>::value,
+      "Timeouts are only allowed in behaviors");
     impl_ = detail::make_behavior(xs...);
   }
 
@@ -82,8 +84,9 @@ public:
   /// Returns a new handler that concatenates this handler
   /// with a new handler from `xs...`.
   template <class... Ts>
-  std::conditional_t<(may_have_timeout_v<std::decay_t<Ts>> || ...), behavior,
-                     message_handler>
+  typename std::conditional<detail::disjunction<may_have_timeout<
+                              typename std::decay<Ts>::type>::value...>::value,
+                            behavior, message_handler>::type
   or_else(Ts&&... xs) const {
     // using a behavior is safe here, because we "cast"
     // it back to a message_handler when appropriate

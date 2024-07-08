@@ -1,11 +1,22 @@
-// This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
-// the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+/******************************************************************************
+ *                       ____    _    _____                                   *
+ *                      / ___|  / \  |  ___|    C++                           *
+ *                     | |     / _ \ | |_       Actor                         *
+ *                     | |___ / ___ \|  _|      Framework                     *
+ *                      \____/_/   \_|_|                                      *
+ *                                                                            *
+ * Copyright 2011-2021 Dominik Charousset                                     *
+ *                                                                            *
+ * Distributed under the terms and conditions of the BSD 3-Clause License or  *
+ * (at your option) under the terms and conditions of the Boost Software      *
+ * License 1.0. See accompanying files LICENSE and LICENSE_ALTERNATIVE.       *
+ *                                                                            *
+ * If you did not receive a copy of the license files, see                    *
+ * http://opensource.org/licenses/BSD-3-Clause and                            *
+ * http://www.boost.org/LICENSE_1_0.txt.                                      *
+ ******************************************************************************/
 
 #pragma once
-
-#include "caf/detail/core_export.hpp"
-#include "caf/fwd.hpp"
 
 #include <atomic>
 #include <condition_variable>
@@ -13,11 +24,13 @@
 #include <mutex>
 #include <thread>
 
+#include "caf/fwd.hpp"
+
 namespace caf::detail {
 
-class CAF_CORE_EXPORT private_thread_pool {
+class private_thread_pool {
 public:
-  struct CAF_CORE_EXPORT node {
+  struct node {
     virtual ~node();
     node* next = nullptr;
     // Called by the private thread pool to stop the node. Regular nodes should
@@ -25,7 +38,7 @@ public:
     virtual bool stop() = 0;
   };
 
-  explicit private_thread_pool(actor_system* sys) : sys_(sys) {
+  explicit private_thread_pool(actor_system* sys) : sys_(sys), running_(0) {
     // nop
   }
 
@@ -49,7 +62,7 @@ private:
   mutable std::mutex mtx_;
   std::condition_variable cv_;
   node* head_ = nullptr;
-  size_t running_ = 0;
+  size_t running_;
 };
 
 } // namespace caf::detail

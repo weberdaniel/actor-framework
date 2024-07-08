@@ -1,23 +1,21 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/io/middleman_actor.hpp"
+#include <set>
+#include <string>
 
 #include "caf/actor_system.hpp"
 #include "caf/detail/openssl_export.hpp"
-#include "caf/version.hpp"
-
-#include <set>
-#include <string>
+#include "caf/io/middleman_actor.hpp"
 
 namespace caf::openssl {
 
 /// Stores OpenSSL context information and provides access to necessary
 /// credentials for establishing connections.
-class CAF_OPENSSL_EXPORT manager : public actor_system_module {
+class CAF_OPENSSL_EXPORT manager : public actor_system::module {
 public:
   ~manager() override;
 
@@ -58,11 +56,7 @@ public:
   //           a custom implementation.
   /// @throws `logic_error` if the middleman is not loaded or is not using the
   ///         default network backend.
-  static actor_system_module* make(actor_system&);
-
-  /// Checks whether the ABI of the middleman is compatible with the CAF core.
-  /// Otherwise, calls `abort`.
-  static void check_abi_compatibility(version::abi_token token);
+  static actor_system::module* make(actor_system&, detail::type_list<>);
 
   /// Adds message types of the OpenSSL module to the global meta object table.
   static void init_global_meta_objects();

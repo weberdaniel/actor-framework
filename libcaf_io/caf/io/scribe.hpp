@@ -1,20 +1,19 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/io/broker_servant.hpp"
-#include "caf/io/network/stream_manager.hpp"
-#include "caf/io/receive_policy.hpp"
-#include "caf/io/system_messages.hpp"
+#include <vector>
 
 #include "caf/allowed_unsafe_message_type.hpp"
 #include "caf/byte_buffer.hpp"
 #include "caf/detail/io_export.hpp"
+#include "caf/io/broker_servant.hpp"
+#include "caf/io/network/stream_manager.hpp"
+#include "caf/io/receive_policy.hpp"
+#include "caf/io/system_messages.hpp"
 #include "caf/message.hpp"
-
-#include <vector>
 
 namespace caf::io {
 
@@ -45,9 +44,9 @@ public:
   /// content of the buffer via the network.
   virtual void flush() = 0;
 
-  bool consume(scheduler*, const void*, size_t) override;
+  bool consume(execution_unit*, const void*, size_t) override;
 
-  void data_transferred(scheduler*, size_t, size_t) override;
+  void data_transferred(execution_unit*, size_t, size_t) override;
 
 protected:
   message detach_message() override;

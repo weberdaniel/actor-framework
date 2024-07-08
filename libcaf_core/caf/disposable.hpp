@@ -1,13 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include <vector>
+
 #include "caf/detail/core_export.hpp"
 #include "caf/intrusive_ptr.hpp"
-
-#include <vector>
 
 namespace caf {
 
@@ -68,9 +68,6 @@ public:
   /// is disposed if all of its elements are disposed. Disposing the composite
   /// disposes all elements individually.
   static disposable make_composite(std::vector<disposable> entries);
-
-  /// Creates a disposable that simply represents a flag.
-  static disposable make_flag();
 
   // -- mutators ---------------------------------------------------------------
 

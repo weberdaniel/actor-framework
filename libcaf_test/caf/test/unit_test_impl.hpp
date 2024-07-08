@@ -1,10 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/config.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -15,11 +13,11 @@
 #include <regex>
 #include <thread>
 
+#include "caf/config.hpp"
+
 #ifndef CAF_WINDOWS
 #  include <unistd.h>
 #endif
-
-#include "caf/test/unit_test.hpp"
 
 #include "caf/config_option_adder.hpp"
 #include "caf/config_option_set.hpp"
@@ -27,9 +25,9 @@
 #include "caf/detail/set_thread_name.hpp"
 #include "caf/settings.hpp"
 #include "caf/string_algorithms.hpp"
+#include "caf/test/unit_test.hpp"
 
 namespace caf::test {
-inline namespace legacy {
 
 #ifdef CAF_ENABLE_EXCEPTIONS
 
@@ -50,7 +48,7 @@ public:
 
 private:
   watchdog(int secs) {
-    thread_ = std::thread{[this, secs] {
+    thread_ = std::thread{[=] {
       caf::detail::set_thread_name("test.watchdog");
       auto tp = std::chrono::high_resolution_clock::now()
                 + std::chrono::seconds(secs);
@@ -659,7 +657,6 @@ int main(int argc, char** argv) {
   return result ? 0 : 1;
 }
 
-} // namespace legacy
 } // namespace caf::test
 
 #ifndef CAF_TEST_NO_MAIN

@@ -1,21 +1,19 @@
 #pragma once
 
-#include "caf/net/lp/frame.hpp"
-
-#include "caf/all.hpp"
-#include "caf/async/spsc_buffer.hpp"
-#include "caf/mixin/actor_widget.hpp"
-
 #include <exception>
 
+#include "caf/all.hpp"
+#include "caf/mixin/actor_widget.hpp"
+
 CAF_PUSH_WARNINGS
+#include <QWidget>
 #include <QLineEdit>
 #include <QTextEdit>
-#include <QWidget>
 CAF_POP_WARNINGS
 
 CAF_BEGIN_TYPE_ID_BLOCK(qtsupport, first_custom_type_id)
 
+  CAF_ADD_ATOM(qtsupport, set_name_atom)
   CAF_ADD_ATOM(qtsupport, quit_atom)
 
 CAF_END_TYPE_ID_BLOCK(qtsupport)
@@ -31,25 +29,21 @@ public:
 
   using super = caf::mixin::actor_widget<QWidget>;
 
-  using frame = caf::net::lp::frame;
-
-  using publisher_type = caf::flow::multicaster<QString>;
-
   ChatWidget(QWidget* parent = nullptr);
 
   ~ChatWidget();
 
-  void init(caf::actor_system& system, const std::string& name,
-            caf::async::consumer_resource<frame> pull,
-            caf::async::producer_resource<frame> push);
+  void init(caf::actor_system& system);
 
 public slots:
 
   void sendChatMessage();
+  void joinGroup();
   void changeName();
 
 private:
-  template <typename T>
+
+  template<typename T>
   T* get(T*& member, const char* name) {
     if (member == nullptr) {
       member = findChild<T*>(name);
@@ -77,6 +71,6 @@ private:
 
   QLineEdit* input_;
   QTextEdit* output_;
-  QString name_;
-  std::unique_ptr<publisher_type> publisher_;
+  std::string name_;
+  caf::group chatroom_;
 };

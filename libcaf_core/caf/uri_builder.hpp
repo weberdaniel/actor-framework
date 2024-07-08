@@ -1,15 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <cstdint>
+#include <string>
 
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/uri.hpp"
-
-#include <cstdint>
-#include <string>
 
 namespace caf {
 
@@ -33,8 +33,6 @@ public:
   uri_builder& scheme(std::string str);
 
   uri_builder& userinfo(std::string str);
-
-  uri_builder& userinfo(std::string str, std::string password);
 
   uri_builder& host(std::string str);
 

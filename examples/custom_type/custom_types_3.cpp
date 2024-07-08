@@ -1,9 +1,10 @@
 // Showcases custom message types that cannot provide
 // friend access to the inspect() function.
 
-#include "caf/all.hpp"
-
+#include <iostream>
 #include <utility>
+
+#include "caf/all.hpp"
 
 class foo;
 
@@ -12,6 +13,10 @@ CAF_BEGIN_TYPE_ID_BLOCK(custom_types_3, first_custom_type_id)
   CAF_ADD_TYPE_ID(custom_types_3, (foo))
 
 CAF_END_TYPE_ID_BLOCK(custom_types_3)
+
+using std::cout;
+using std::endl;
+using std::make_pair;
 
 using namespace caf;
 
@@ -69,12 +74,12 @@ bool inspect(Inspector& f, foo& x) {
 
 behavior testee(event_based_actor* self) {
   return {
-    [self](const foo& x) { self->println("{}", x); },
+    [=](const foo& x) { aout(self) << deep_to_string(x) << endl; },
   };
 }
 
 void caf_main(actor_system& system) {
-  anon_mail(foo{1, 2}).send(system.spawn(testee));
+  anon_send(system.spawn(testee), foo{1, 2});
 }
 
 CAF_MAIN(id_block::custom_types_3)

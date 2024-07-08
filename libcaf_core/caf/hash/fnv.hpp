@@ -1,19 +1,19 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
+#include <type_traits>
 
 #include "caf/detail/ieee_754.hpp"
 #include "caf/inspector_access.hpp"
 #include "caf/save_inspector_base.hpp"
 #include "caf/span.hpp"
 #include "caf/type_id.hpp"
-
-#include <cstddef>
-#include <cstdint>
-#include <string_view>
-#include <type_traits>
 
 namespace caf::hash {
 
@@ -105,7 +105,7 @@ public:
   }
 
   template <class Integral>
-  std::enable_if_t<std::is_integral_v<Integral>, bool>
+  std::enable_if_t<std::is_integral<Integral>::value, bool>
   value(Integral x) noexcept {
     auto begin = reinterpret_cast<const uint8_t*>(&x);
     append(begin, begin + sizeof(Integral));

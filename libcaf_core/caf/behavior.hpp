@@ -1,19 +1,20 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include <functional>
+#include <type_traits>
+
 #include "caf/detail/behavior_impl.hpp"
 #include "caf/detail/core_export.hpp"
+#include "caf/detail/type_list.hpp"
 #include "caf/detail/type_traits.hpp"
 #include "caf/none.hpp"
 #include "caf/timeout_definition.hpp"
 #include "caf/timespan.hpp"
 #include "caf/unsafe_behavior_init.hpp"
-
-#include <functional>
-#include <type_traits>
 
 namespace caf {
 
@@ -42,41 +43,21 @@ public:
   /// The list of arguments can contain match expressions, message handlers,
   /// and up to one timeout (if set, the timeout has to be the last argument).
   template <class T, class... Ts>
-  behavior(T arg, Ts&&... args) {
-    if constexpr (is_timeout_definition_v<T>
-                  || (is_timeout_definition_v<Ts> || ...)) {
-      legacy_assign(std::move(arg), std::forward<Ts>(args)...);
-    } else {
-      impl_ = detail::make_behavior(std::move(arg), std::forward<Ts>(args)...);
-    }
+  behavior(T x, Ts&&... xs) {
+    assign(std::move(x), std::forward<Ts>(xs)...);
   }
 
   /// Creates a behavior from `tdef` without message handler.
   template <class F>
-  [[deprecated("use idle timeouts instead of 'after >> ...'")]]
-  behavior(timeout_definition<F> tdef)
-    : impl_(detail::make_behavior(tdef)) {
+  behavior(timeout_definition<F> tdef) : impl_(detail::make_behavior(tdef)) {
     // nop
   }
 
   /// Assigns new handlers.
   template <class... Ts>
-  [[deprecated("use idle timeouts instead of 'after >> ...'")]]
-  void legacy_assign(Ts&&... xs) {
+  void assign(Ts&&... xs) {
     static_assert(sizeof...(Ts) > 0, "assign() called without arguments");
     impl_ = detail::make_behavior(std::forward<Ts>(xs)...);
-  }
-
-  /// Assigns new handlers.
-  template <class T, class... Ts>
-  void assign(T&& arg, Ts&&... args) {
-    if constexpr (is_timeout_definition_v<T>
-                  || (is_timeout_definition_v<Ts> || ...)) {
-      legacy_assign(std::forward<T>(arg), std::forward<Ts>(args)...);
-    } else {
-      impl_ = detail::make_behavior(std::forward<T>(arg),
-                                    std::forward<Ts>(args)...);
-    }
   }
 
   void swap(behavior& other) {
@@ -131,12 +112,8 @@ public:
     // nop
   }
 
-  behavior& unbox() & {
+  behavior& unbox() {
     return *this;
-  }
-
-  behavior&& unbox() && {
-    return std::move(*this);
   }
 
   /// @endcond

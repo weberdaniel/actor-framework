@@ -16,23 +16,24 @@ endfunction()
 
 # -- examples for CAF::core ----------------------------------------------------
 
-# introductory applications
+# introductionary applications
+add_core_example(. aout)
 add_core_example(. hello_world)
-add_core_example(. println)
 
 # configuration API
 add_core_example(config read-json)
 
 # basic message passing primitives
 add_core_example(message_passing calculator)
+add_core_example(message_passing cell)
 add_core_example(message_passing dancing_kirby)
 add_core_example(message_passing delegating)
 add_core_example(message_passing divider)
 add_core_example(message_passing fan_out_request)
-add_core_example(message_passing idle_timeout_once)
-add_core_example(message_passing idle_timeout_repeat)
+add_core_example(message_passing fixed_stack)
 add_core_example(message_passing promises)
 add_core_example(message_passing request)
+add_core_example(message_passing typed_calculator)
 
 # flow API
 add_core_example(flow iota)
@@ -64,9 +65,58 @@ if(TARGET CAF::io)
   endfunction()
 
   # basic remoting
+  add_io_example(remoting group_chat)
+  add_io_example(remoting group_server)
   add_io_example(remoting remote_spawn)
-  add_io_example(remoting stateful_remote_spawn)
   add_io_example(remoting distributed_calculator)
+
+  # basic I/O with brokers
+  add_io_example(broker simple_broker)
+  add_io_example(broker simple_http_broker)
+
+  if(CAF_ENABLE_PROTOBUF_EXAMPLES)
+    find_package(Protobuf REQUIRED)
+    if(NOT PROTOBUF_PROTOC_EXECUTABLE)
+      message(FATAL_ERROR "CMake was unable to set PROTOBUF_PROTOC_EXECUTABLE")
+    endif()
+    protobuf_generate_cpp(ProtoSources ProtoHeaders "${CMAKE_CURRENT_SOURCE_DIR}/remoting/pingpong.proto")
+    include_directories(${PROTOBUF_INCLUDE_DIR})
+    include_directories(${CMAKE_CURRENT_BINARY_DIR})
+    add_executable(protobuf_broker broker/protobuf_broker.cpp ${ProtoSources})
+    target_link_libraries(protobuf_broker
+                          PRIVATE ${PROTOBUF_LIBRARIES} CAF::internal CAF::io)
+    add_dependencies(protobuf_broker all_examples)
+  endif()
+
+  if(CAF_ENABLE_QT6_EXAMPLES)
+    find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+    qt6_wrap_ui(GROUP_CHAT_UI_HDR qtsupport/chatwindow.ui)
+    qt6_wrap_cpp(GROUP_CHAT_MOC_SRC qtsupport/chatwidget.hpp)
+    # generated headers will be in cmake build directory
+    add_executable(qt_group_chat
+                   qtsupport/qt_group_chat.cpp
+                   qtsupport/chatwidget.cpp
+                   ${GROUP_CHAT_MOC_SRC}
+                   ${GROUP_CHAT_UI_HDR})
+    target_link_libraries(qt_group_chat
+                          CAF::io
+                          CAF::internal
+                          Qt6::Core
+                          Qt6::Gui
+                          Qt6::Widgets)
+    target_include_directories(qt_group_chat PRIVATE
+                               qtsupport
+                               ${CMAKE_CURRENT_BINARY_DIR}
+                               ${Qt6Core_INCLUDE_DIRS}
+                               ${Qt6Gui_INCLUDE_DIRS}
+                               ${Qt6Widgets_INCLUDE_DIRS})
+    if (CMAKE_VERSION VERSION_LESS 3.8)
+      message(STATUS "Note: build fails if Qt6 sets incompatible -std=ARG flag")
+    else()
+      set_property(TARGET qt_group_chat PROPERTY CXX_STANDARD 17)
+    endif()
+    add_dependencies(qt_group_chat all_examples)
+  endif()
 
   if(CAF_ENABLE_CURL_EXAMPLES)
     find_package(CURL REQUIRED)
@@ -89,47 +139,11 @@ else()
   endfunction()
 endif()
 
-add_net_example(http client)
-add_net_example(http rest)
+add_net_example(http secure-time-server)
 add_net_example(http time-server)
-
-add_net_example(length_prefix_framing chat-client)
-add_net_example(length_prefix_framing chat-server)
-
-add_net_example(octet_stream key-value-store)
-add_net_example(octet_stream text-client)
 
 add_net_example(web_socket echo)
 add_net_example(web_socket hello-client)
 add_net_example(web_socket quote-server)
+add_net_example(web_socket secure-echo)
 add_net_example(web_socket stock-ticker)
-
-if(TARGET CAF::net AND CAF_ENABLE_QT6_EXAMPLES)
-  find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
-  qt6_wrap_ui(GROUP_CHAT_UI_HDR qtsupport/chatwindow.ui)
-  qt6_wrap_cpp(GROUP_CHAT_MOC_SRC qtsupport/chatwidget.hpp)
-  # generated headers will be in cmake build directory
-  add_executable(qt_group_chat
-                 qtsupport/qt_group_chat.cpp
-                 qtsupport/chatwidget.cpp
-                 ${GROUP_CHAT_MOC_SRC}
-                 ${GROUP_CHAT_UI_HDR})
-  target_link_libraries(qt_group_chat
-                        CAF::net
-                        CAF::internal
-                        Qt6::Core
-                        Qt6::Gui
-                        Qt6::Widgets)
-  target_include_directories(qt_group_chat PRIVATE
-                             qtsupport
-                             ${CMAKE_CURRENT_BINARY_DIR}
-                             ${Qt6Core_INCLUDE_DIRS}
-                             ${Qt6Gui_INCLUDE_DIRS}
-                             ${Qt6Widgets_INCLUDE_DIRS})
-  if (CMAKE_VERSION VERSION_LESS 3.8)
-    message(STATUS "Note: build fails if Qt6 sets incompatible -std=ARG flag")
-  else()
-    set_property(TARGET qt_group_chat PROPERTY CXX_STANDARD 17)
-  endif()
-  add_dependencies(qt_group_chat all_examples)
-endif()

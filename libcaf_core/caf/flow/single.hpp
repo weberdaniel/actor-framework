@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -36,59 +36,52 @@ class single_observer_impl
 public:
   using input_type = on_success_arg_t<OnSuccess>;
 
-  single_observer_impl(coordinator* parent, OnSuccess on_success,
-                       OnError on_error)
-    : parent_(parent),
-      on_success_(std::move(on_success)),
-      on_error_(std::move(on_error)) {
+  single_observer_impl(OnSuccess on_success, OnError on_error)
+    : on_success_(std::move(on_success)), on_error_(std::move(on_error)) {
     // nop
   }
 
-  coordinator* parent() const noexcept override {
-    return parent_;
-  }
-
-  void on_subscribe(subscription sub) override {
+  void on_subscribe(subscription sub) {
     // Request one additional item to detect whether the observable emits more
     // than one item.
     sub.request(2);
     sub_ = std::move(sub);
   }
 
-  void on_next(const input_type& item) override {
+  void on_next(const input_type& item) {
     if (!result_) {
       result_.emplace(item);
-      return;
+    } else {
+      sub_.dispose();
+      sub_ = nullptr;
+      auto err = make_error(sec::runtime_error,
+                            "single emitted more than one item");
+      on_error_(err);
     }
-    sub_.cancel();
-    auto err = make_error(sec::runtime_error,
-                          "caf::flow::single emitted more than one item");
-    on_error_(err);
   }
 
-  void on_complete() override {
-    if (!sub_)
-      return;
-    sub_.release_later();
-    if (result_) {
-      on_success_(*result_);
-      result_ = std::nullopt;
-      return;
+  void on_complete() {
+    if (sub_) {
+      sub_ = nullptr;
+      if (result_) {
+        on_success_(*result_);
+        result_ = std::nullopt;
+      } else {
+        auto err = make_error(sec::broken_promise,
+                              "single failed to produce an item");
+        on_error_(err);
+      }
     }
-    auto err = make_error(sec::broken_promise,
-                          "caf::flow::single failed to produce an item");
-    on_error_(err);
   }
 
-  void on_error(const error& what) override {
-    if (!sub_)
-      return;
-    sub_.release_later();
-    on_error_(what);
+  void on_error(const error& what) {
+    if (sub_) {
+      sub_ = nullptr;
+      on_error_(what);
+    }
   }
 
 private:
-  coordinator* parent_;
   OnSuccess on_success_;
   OnError on_error_;
   std::optional<input_type> result_;
@@ -130,10 +123,8 @@ public:
     static_assert(std::is_invocable_v<OnSuccess, const T&>);
     static_assert(std::is_invocable_v<OnError, const error&>);
     using impl_t = single_observer_impl<OnSuccess, OnError>;
-    auto hdl = pimpl_->parent()->add_child_hdl(std::in_place_type<impl_t>,
-                                               std::move(on_success),
-                                               std::move(on_error));
-    return pimpl_->subscribe(std::move(hdl));
+    auto ptr = make_counted<impl_t>(std::move(on_success), std::move(on_error));
+    return pimpl_->subscribe(observer<T>{ptr});
   }
 
   bool valid() const noexcept {

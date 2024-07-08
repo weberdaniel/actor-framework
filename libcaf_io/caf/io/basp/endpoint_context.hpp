@@ -1,19 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include <unordered_map>
+
+#include "caf/actor_clock.hpp"
 #include "caf/io/basp/connection_state.hpp"
 #include "caf/io/basp/header.hpp"
 #include "caf/io/connection_handle.hpp"
 #include "caf/io/datagram_handle.hpp"
-
-#include "caf/actor_clock.hpp"
 #include "caf/response_promise.hpp"
 #include "caf/timestamp.hpp"
-
-#include <unordered_map>
 
 namespace caf::io::basp {
 

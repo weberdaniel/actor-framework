@@ -1,15 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/detail/core_export.hpp"
-#include "caf/detail/squashed_int.hpp"
-#include "caf/fwd.hpp"
-#include "caf/save_inspector_base.hpp"
-#include "caf/sec.hpp"
-#include "caf/span.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,6 +11,13 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+
+#include "caf/detail/core_export.hpp"
+#include "caf/detail/squashed_int.hpp"
+#include "caf/fwd.hpp"
+#include "caf/save_inspector_base.hpp"
+#include "caf/sec.hpp"
+#include "caf/span.hpp"
 
 namespace caf {
 
@@ -31,17 +31,15 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  serializer() noexcept = default;
+  explicit serializer(actor_system& sys) noexcept;
 
-  explicit serializer(actor_system& sys) noexcept : context_(&sys) {
-    // nop
-  }
+  explicit serializer(execution_unit* ctx = nullptr) noexcept;
 
   virtual ~serializer();
 
   // -- properties -------------------------------------------------------------
 
-  actor_system* context() const noexcept {
+  auto context() const noexcept {
     return context_;
   }
 
@@ -136,7 +134,7 @@ public:
 
   /// @copydoc value
   template <class T>
-  std::enable_if_t<std::is_integral_v<T>, bool> value(T x) {
+  std::enable_if_t<std::is_integral<T>::value, bool> value(T x) {
     return value(static_cast<detail::squashed_int_t<T>>(x));
   }
 
@@ -172,7 +170,7 @@ public:
 
 protected:
   /// Provides access to the ::proxy_registry and to the ::actor_system.
-  actor_system* context_ = nullptr;
+  execution_unit* context_;
 
   /// Configures whether client code should assume human-readable output.
   bool has_human_readable_format_ = false;

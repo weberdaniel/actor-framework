@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -8,7 +8,6 @@
 #include "caf/async/execution_context.hpp"
 #include "caf/async/read_result.hpp"
 #include "caf/async/spsc_buffer.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/detail/atomic_ref_counted.hpp"
 #include "caf/intrusive_ptr.hpp"
 #include "caf/make_counted.hpp"
@@ -139,11 +138,6 @@ public:
   ~consumer_adapter() {
     if (impl_)
       impl_->cancel();
-  }
-
-  consumer_adapter& operator=(std::nullptr_t) {
-    impl_ = nullptr;
-    return *this;
   }
 
   template <class Policy>

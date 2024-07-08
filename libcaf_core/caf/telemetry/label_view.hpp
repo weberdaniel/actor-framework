@@ -1,15 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <string_view>
 
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/hash/fnv.hpp"
-
-#include <string_view>
 
 namespace caf::telemetry {
 
@@ -42,9 +42,9 @@ public:
 
   // -- comparison -------------------------------------------------------------
 
-  int compare(const label& other) const noexcept;
+  int compare(const label& x) const noexcept;
 
-  int compare(const label_view& other) const noexcept;
+  int compare(const label_view& x) const noexcept;
 
 private:
   std::string_view name_;

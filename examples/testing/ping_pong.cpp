@@ -1,12 +1,9 @@
-// This example showcases a simple a unit test with two actors sending messages
-// to each other. Execution is fully deterministic and the test passes if the
-// sequence of messages follows the expected pattern.
+#define CAF_SUITE ping_pong
 
-#include "caf/test/caf_test_main.hpp"
-#include "caf/test/fixture/deterministic.hpp"
-#include "caf/test/test.hpp"
+#include "caf/test/dsl.hpp"
+#include "caf/test/unit_test_impl.hpp"
 
-#include "caf/event_based_actor.hpp"
+#include "caf/all.hpp"
 
 using namespace caf;
 
@@ -14,11 +11,11 @@ using namespace caf;
 namespace {
 
 behavior ping(event_based_actor* self, actor pong_actor, int n) {
-  self->mail(ping_atom_v, n).send(pong_actor);
+  self->send(pong_actor, ping_atom_v, n);
   return {
     [=](pong_atom, int x) {
       if (x > 1)
-        self->mail(ping_atom_v, x - 1).send(pong_actor);
+        self->send(pong_actor, ping_atom_v, x - 1);
     },
   };
 }
@@ -29,25 +26,35 @@ behavior pong() {
   };
 }
 
-WITH_FIXTURE(caf::test::fixture::deterministic) {
+struct ping_pong_fixture : test_coordinator_fixture<> {
+  actor pong_actor;
 
-TEST("two actors can communicate with each other") {
-  // Spawn the Ping actor and run its initialization code.
-  auto pong_actor = sys.spawn(pong);
-  auto ping_actor = sys.spawn(ping, pong_actor, 3);
-  // Test communication between Ping and Pong.
-  expect<ping_atom, int>().with(std::ignore, 3).from(ping_actor).to(pong_actor);
-  expect<pong_atom, int>().with(std::ignore, 3).from(pong_actor).to(ping_actor);
-  expect<ping_atom, int>().with(std::ignore, 2).from(ping_actor).to(pong_actor);
-  expect<pong_atom, int>().with(std::ignore, 2).from(pong_actor).to(ping_actor);
-  expect<ping_atom, int>().with(std::ignore, 1).from(ping_actor).to(pong_actor);
-  expect<pong_atom, int>().with(std::ignore, 1).from(pong_actor).to(ping_actor);
-  check_eq(mail_count(), 0u);
-}
-
-} // WITH_FIXTURE(caf::test::fixture::deterministic)
+  ping_pong_fixture() {
+    // Spawn the Pong actor.
+    pong_actor = sys.spawn(pong);
+    // Run initialization code for Pong.
+    run();
+  }
+};
 
 } // namespace
-// --(rst-ping-pong-end)--
 
-CAF_TEST_MAIN()
+CAF_TEST_FIXTURE_SCOPE(ping_pong_tests, ping_pong_fixture)
+
+CAF_TEST(three pings) {
+  // Spawn the Ping actor and run its initialization code.
+  auto ping_actor = sys.spawn(ping, pong_actor, 3);
+  sched.run_once();
+  // Test communication between Ping and Pong.
+  expect((ping_atom, int), from(ping_actor).to(pong_actor).with(_, 3));
+  expect((pong_atom, int), from(pong_actor).to(ping_actor).with(_, 3));
+  expect((ping_atom, int), from(ping_actor).to(pong_actor).with(_, 2));
+  expect((pong_atom, int), from(pong_actor).to(ping_actor).with(_, 2));
+  expect((ping_atom, int), from(ping_actor).to(pong_actor).with(_, 1));
+  expect((pong_atom, int), from(pong_actor).to(ping_actor).with(_, 1));
+  // No further messages allowed.
+  disallow((ping_atom, int), from(ping_actor).to(pong_actor).with(_, 1));
+}
+
+CAF_TEST_FIXTURE_SCOPE_END()
+// --(rst-ping-pong-end)--

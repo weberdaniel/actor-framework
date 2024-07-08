@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -82,11 +82,12 @@ public:
     // nop
   }
 
-  template <class T,
-            class = std::enable_if_t<
-              !std::is_convertible_v<T, raw_pointer>
-              && std::is_same_v<
-                decltype((std::declval<T&>())(std::declval<Ts>()...)), R>>>
+  template <
+    class T,
+    class = typename std::enable_if<
+      !std::is_convertible<T, raw_pointer>::value
+      && std::is_same<decltype((std::declval<T&>())(std::declval<Ts>()...)),
+                      R>::value>::type>
   explicit unique_function(T f) : unique_function(make_wrapper(std::move(f))) {
     // nop
   }
@@ -123,18 +124,6 @@ public:
 
   void assign(wrapper_pointer ptr) {
     *this = unique_function{ptr};
-  }
-
-  template <class Fn>
-  void emplace(Fn fn) {
-    destroy();
-    if constexpr (std::is_convertible_v<Fn, raw_pointer>) {
-      holds_wrapper_ = false;
-      fptr_ = fn;
-    } else {
-      holds_wrapper_ = true;
-      new (&wptr_) wrapper_pointer{make_wrapper(std::move(fn))};
-    }
   }
 
   // -- properties -------------------------------------------------------------

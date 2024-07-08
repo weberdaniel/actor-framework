@@ -1,30 +1,23 @@
-// This example illustrates semantics of request().{then|await|receive}.
-
-#include "caf/actor_from_state.hpp"
-#include "caf/actor_ostream.hpp"
-#include "caf/actor_system.hpp"
-#include "caf/caf_main.hpp"
-#include "caf/scoped_actor.hpp"
-#include "caf/typed_actor.hpp"
-#include "caf/typed_event_based_actor.hpp"
+/******************************************************************************\
+ * Illustrates semantics of request().{then|await|receive}.                   *
+\******************************************************************************/
 
 #include <chrono>
 #include <cstdint>
+#include <iostream>
 #include <vector>
+
+#include "caf/all.hpp"
 
 using std::endl;
 using std::vector;
-
+using std::chrono::seconds;
 using namespace caf;
-using namespace std::literals;
 
 // --(rst-cell-begin)--
-struct cell_trait {
-  using signatures
-    = type_list<result<void>(put_atom, int32_t), // 'put' writes to the cell
+using cell
+  = typed_actor<result<void>(put_atom, int32_t), // 'put' writes to the cell
                 result<int32_t>(get_atom)>;      // 'get 'reads from the cell
-};
-using cell = typed_actor<cell_trait>;
 
 struct cell_state {
   static constexpr inline const char* name = "cell";
@@ -37,55 +30,63 @@ struct cell_state {
     // nop
   }
 
+  cell_state(const cell_state&) = delete;
+
+  cell_state& operator=(const cell_state&) = delete;
+
   cell::behavior_type make_behavior() {
     return {
-      [this](put_atom, int32_t val) { value = val; },
-      [this](get_atom) { return value; },
+      [=](put_atom, int32_t val) { value = val; },
+      [=](get_atom) { return value; },
     };
   }
 };
+
+using cell_impl = cell::stateful_impl<cell_state>;
 // --(rst-cell-end)--
 
 // --(rst-testees-begin)--
 void waiting_testee(event_based_actor* self, vector<cell> cells) {
   for (auto& x : cells)
-    self->mail(get_atom_v).request(x, 1s).await([self, x](int32_t y) {
-      self->println("cell #{} -> {}", x.id(), y);
+    self->request(x, seconds(1), get_atom_v).await([=](int32_t y) {
+      aout(self) << "cell #" << x.id() << " -> " << y << endl;
     });
 }
 
 void multiplexed_testee(event_based_actor* self, vector<cell> cells) {
   for (auto& x : cells)
-    self->mail(get_atom_v).request(x, 1s).then([self, x](int32_t y) {
-      self->println("cell #{} -> {}", x.id(), y);
+    self->request(x, seconds(1), get_atom_v).then([=](int32_t y) {
+      aout(self) << "cell #" << x.id() << " -> " << y << endl;
     });
 }
 
-void blocking_testee(scoped_actor& self, vector<cell> cells) {
+void blocking_testee(blocking_actor* self, vector<cell> cells) {
   for (auto& x : cells)
-    self->mail(get_atom_v)
-      .request(x, 1s)
-      .receive([&](int32_t y) { self->println("cell #{} -> {}", x.id(), y); },
-               [&](error& err) {
-                 self->println("cell #{} -> {}", x.id(), err);
-               });
+    self->request(x, seconds(1), get_atom_v)
+      .receive(
+        [&](int32_t y) {
+          aout(self) << "cell #" << x.id() << " -> " << y << endl;
+        },
+        [&](error& err) {
+          aout(self) << "cell #" << x.id() << " -> " << to_string(err) << endl;
+        });
 }
 // --(rst-testees-end)--
 
 // --(rst-main-begin)--
-void caf_main(actor_system& sys) {
+void caf_main(actor_system& system) {
   vector<cell> cells;
   for (int32_t i = 0; i < 5; ++i)
-    cells.emplace_back(sys.spawn(actor_from_state<cell_state>, i * i));
-  scoped_actor self{sys};
-  self->println("spawn waiting testee");
+    cells.emplace_back(system.spawn<cell_impl>(i * i));
+  scoped_actor self{system};
+  aout(self) << "waiting_testee" << endl;
   auto x1 = self->spawn(waiting_testee, cells);
   self->wait_for(x1);
-  self->println("spawn multiplexed testee");
+  aout(self) << "multiplexed_testee" << endl;
   auto x2 = self->spawn(multiplexed_testee, cells);
   self->wait_for(x2);
-  self->println("run blocking testee");
-  blocking_testee(self, cells);
+  aout(self) << "blocking_testee" << endl;
+  system.spawn(blocking_testee, cells);
 }
 // --(rst-main-end)--
 

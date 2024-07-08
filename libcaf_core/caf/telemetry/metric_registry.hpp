@@ -1,10 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/detail/assert.hpp"
+#include <algorithm>
+#include <initializer_list>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <string_view>
+
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/raise_error.hpp"
@@ -13,13 +19,6 @@
 #include "caf/telemetry/gauge.hpp"
 #include "caf/telemetry/histogram.hpp"
 #include "caf/telemetry/metric_family_impl.hpp"
-
-#include <algorithm>
-#include <initializer_list>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <string_view>
 
 namespace caf::telemetry {
 
@@ -461,11 +460,6 @@ public:
     for (auto& ptr : families_)
       visit_family(f, ptr.get());
   }
-
-  // -- static utility functions -----------------------------------------------
-
-  /// Returns a pointer to the metric registry from the actor system.
-  static metric_registry* from(actor_system& sys);
 
   // -- modifiers --------------------------------------------------------------
 

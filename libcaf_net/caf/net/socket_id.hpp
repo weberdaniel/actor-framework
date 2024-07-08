@@ -1,14 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/config.hpp"
 
 #include <cstddef>
 #include <limits>
 #include <type_traits>
+
+#include "caf/config.hpp"
 
 namespace caf::net {
 
@@ -34,6 +34,6 @@ constexpr socket_id invalid_socket_id = -1;
 
 /// Signed counterpart of `socket_id`.
 /// @relates socket
-using signed_socket_id = std::make_signed_t<socket_id>;
+using signed_socket_id = std::make_signed<socket_id>::type;
 
 } // namespace caf::net

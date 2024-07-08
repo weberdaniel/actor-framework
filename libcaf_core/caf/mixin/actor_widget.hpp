@@ -1,15 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
 #include "caf/actor_companion.hpp"
-#include "caf/actor_system.hpp"
 #include "caf/config.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/make_actor.hpp"
 #include "caf/message_handler.hpp"
+
+#include "caf/scoped_execution_unit.hpp"
 
 CAF_PUSH_WARNINGS
 #include <QApplication>
@@ -36,13 +36,13 @@ public:
 
   ~actor_widget() {
     if (companion_)
-      self()->cleanup(error{}, &(sys_->scheduler()));
+      self()->cleanup(error{}, &execution_unit_);
   }
 
   void init(actor_system& system) {
-    sys_ = &system;
     alive_ = true;
-    companion_ = system.make_companion();
+    execution_unit_.system_ptr(&system);
+    companion_ = actor_cast<strong_actor_ptr>(system.spawn<actor_companion>());
     self()->on_enqueue([=](mailbox_element_ptr ptr) {
       qApp->postEvent(this, new event_type(std::move(ptr)));
     });
@@ -67,7 +67,7 @@ public:
     if (event->type() == static_cast<QEvent::Type>(EventId)) {
       auto ptr = dynamic_cast<event_type*>(event);
       if (ptr && alive_) {
-        switch (self()->activate(&(sys_->scheduler()), *(ptr->mptr))) {
+        switch (self()->activate(&execution_unit_, *(ptr->mptr))) {
           default:
             break;
         };
@@ -90,8 +90,8 @@ public:
   }
 
 private:
-  actor_system* sys_ = nullptr;
-  intrusive_ptr<actor_companion> companion_;
+  scoped_execution_unit execution_unit_;
+  strong_actor_ptr companion_;
   bool alive_;
 };
 

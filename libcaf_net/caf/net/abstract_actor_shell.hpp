@@ -1,33 +1,45 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/net/fwd.hpp"
-
-#include "caf/abstract_mailbox.hpp"
-#include "caf/abstract_scheduled_actor.hpp"
 #include "caf/actor_traits.hpp"
 #include "caf/async/execution_context.hpp"
 #include "caf/callback.hpp"
-#include "caf/detail/default_mailbox.hpp"
 #include "caf/detail/net_export.hpp"
 #include "caf/extend.hpp"
 #include "caf/fwd.hpp"
+#include "caf/intrusive/drr_queue.hpp"
+#include "caf/intrusive/fifo_inbox.hpp"
 #include "caf/local_actor.hpp"
 #include "caf/mixin/requester.hpp"
 #include "caf/mixin/sender.hpp"
+#include "caf/net/fwd.hpp"
 #include "caf/none.hpp"
+#include "caf/policy/normal_messages.hpp"
 #include "caf/unordered_flat_map.hpp"
 
 namespace caf::net {
 
-class CAF_NET_EXPORT abstract_actor_shell : public abstract_scheduled_actor {
+class CAF_NET_EXPORT abstract_actor_shell : public local_actor,
+                                            public non_blocking_actor_base {
 public:
   // -- member types -----------------------------------------------------------
 
-  using super = abstract_scheduled_actor;
+  using super = local_actor;
+
+  struct mailbox_policy {
+    using queue_type = intrusive::drr_queue<policy::normal_messages>;
+
+    using deficit_type = policy::normal_messages::deficit_type;
+
+    using mapped_type = policy::normal_messages::mapped_type;
+
+    using unique_pointer = policy::normal_messages::unique_pointer;
+  };
+
+  using mailbox_type = intrusive::fifo_inbox<mailbox_policy>;
 
   using fallback_handler_sig = result<message>(abstract_actor_shell*, message&);
 
@@ -35,7 +47,7 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  abstract_actor_shell(actor_config& cfg, socket_manager* owner);
+  abstract_actor_shell(actor_config& cfg, async::execution_context_ptr loop);
 
   ~abstract_actor_shell() override;
 
@@ -69,7 +81,7 @@ public:
 
   // -- mailbox access ---------------------------------------------------------
 
-  abstract_mailbox& mailbox() noexcept {
+  auto& mailbox() noexcept {
     return mailbox_;
   }
 
@@ -81,31 +93,24 @@ public:
   /// enqueue to register the owning socket manager for write events.
   bool try_block_mailbox();
 
-  // -- overridden functions of abstract_scheduled_actor -----------------------
+  // -- message processing -----------------------------------------------------
 
-  void add_awaited_response_handler(message_id response_id, behavior bhvr,
-                                    disposable pending_timeout) override;
-
-  void add_multiplexed_response_handler(message_id response_id, behavior bhvr,
-                                        disposable pending_timeout) override;
-
-  void call_error_handler(error& what) override;
-
-  void run_actions() override;
+  /// Adds a callback for a multiplexed response.
+  void add_multiplexed_response_handler(message_id response_id, behavior bhvr);
 
   // -- overridden functions of abstract_actor ---------------------------------
 
   using abstract_actor::enqueue;
 
-  bool enqueue(mailbox_element_ptr ptr, scheduler* eu) override;
+  bool enqueue(mailbox_element_ptr ptr, execution_unit* eu) override;
 
   mailbox_element* peek_at_next_mailbox_element() override;
 
   // -- overridden functions of local_actor ------------------------------------
 
-  void launch(scheduler* eu, bool lazy, bool hide) override;
+  void launch(execution_unit* eu, bool lazy, bool hide) override;
 
-  void on_cleanup(const error& reason) override;
+  bool cleanup(error&& fail_state, execution_unit* host) override;
 
 protected:
   void set_behavior_impl(behavior bhvr) {
@@ -113,25 +118,15 @@ protected:
   }
 
 private:
-  using multiplexed_response = std::pair<behavior, disposable>;
-
-  void do_unstash(mailbox_element_ptr ptr) override;
-
-  void close_mailbox(const error& reason);
-
-  void force_close_mailbox() final;
-
-  flow::coordinator* flow_context() final;
-
   /// Stores incoming actor messages.
-  detail::default_mailbox mailbox_;
+  mailbox_type mailbox_;
 
   /// Guards access to loop_.
   std::mutex loop_mtx_;
 
   /// Points to the loop in which this "actor" runs (nullptr after calling
   /// quit).
-  socket_manager_ptr manager_;
+  async::execution_context_ptr loop_;
 
   /// Handler for consuming messages from the mailbox.
   behavior bhvr_;
@@ -140,7 +135,7 @@ private:
   fallback_handler fallback_;
 
   /// Stores callbacks for multiplexed responses.
-  unordered_flat_map<message_id, multiplexed_response> multiplexed_responses_;
+  unordered_flat_map<message_id, behavior> multiplexed_responses_;
 
   /// Callback for processing the next message on the event loop.
   action resume_;

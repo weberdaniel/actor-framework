@@ -1,17 +1,17 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <vector>
 
 #include "caf/actor.hpp"
 #include "caf/actor_system.hpp"
 #include "caf/event_based_actor.hpp"
+#include "caf/locks.hpp"
 
-#include <memory>
-#include <mutex>
-#include <shared_mutex>
-#include <vector>
+#include "caf/detail/shared_spinlock.hpp"
 
 namespace caf::detail {
 
@@ -32,13 +32,12 @@ public:
   }
 
   behavior make_behavior() override {
-    auto f = [this](scheduled_actor*, message& msg) -> result<message> {
+    auto f = [=](scheduled_actor*, message& msg) -> result<message> {
       auto rp = this->make_response_promise();
       split_(workset_, msg);
       for (auto& x : workset_)
         this->send(x.first, std::move(x.second));
-      auto g = [this, rp](scheduled_actor*,
-                          message& res) mutable -> result<message> {
+      auto g = [=](scheduled_actor*, message& res) mutable -> result<message> {
         join_(value_, res);
         if (--awaited_results_ == 0) {
           rp.deliver(value_);
@@ -79,9 +78,10 @@ public:
     // nop
   }
 
-  void operator()(actor_system& sys, std::unique_lock<std::shared_mutex>& ulock,
-                  const std::vector<actor>& workers, mailbox_element_ptr& ptr,
-                  scheduler* sched) {
+  void
+  operator()(actor_system& sys, upgrade_lock<detail::shared_spinlock>& ulock,
+             const std::vector<actor>& workers, mailbox_element_ptr& ptr,
+             execution_unit* host) {
     if (!ptr->sender)
       return;
     actor_msg_vec xs;
@@ -90,9 +90,9 @@ public:
       xs.emplace_back(worker, message{});
     ulock.unlock();
     using collector_t = split_join_collector<T, Split, Join>;
-    auto hdl = sys.spawn<collector_t, lazy_init>(init_, sf_, jf_,
-                                                 std::move(xs));
-    hdl->enqueue(std::move(ptr), sched);
+    auto hdl
+      = sys.spawn<collector_t, lazy_init>(init_, sf_, jf_, std::move(xs));
+    hdl->enqueue(std::move(ptr), host);
   }
 
 private:

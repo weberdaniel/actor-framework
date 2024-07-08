@@ -1,15 +1,8 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/detail/core_export.hpp"
-#include "caf/fwd.hpp"
-#include "caf/inspector_access.hpp"
-#include "caf/save_inspector_base.hpp"
-#include "caf/timespan.hpp"
-#include "caf/timestamp.hpp"
 
 #include <chrono>
 #include <cstring>
@@ -17,6 +10,13 @@
 #include <string_view>
 #include <type_traits>
 #include <vector>
+
+#include "caf/detail/core_export.hpp"
+#include "caf/fwd.hpp"
+#include "caf/inspector_access.hpp"
+#include "caf/save_inspector_base.hpp"
+#include "caf/timespan.hpp"
+#include "caf/timestamp.hpp"
 
 namespace caf::detail {
 
@@ -90,8 +90,8 @@ public:
   bool value(bool x);
 
   template <class Integral>
-  std::enable_if_t<std::is_integral_v<Integral>, bool> value(Integral x) {
-    if constexpr (std::is_signed_v<Integral>)
+  std::enable_if_t<std::is_integral<Integral>::value, bool> value(Integral x) {
+    if constexpr (std::is_signed<Integral>::value)
       return int_value(static_cast<int64_t>(x));
     else
       return int_value(static_cast<uint64_t>(x));
@@ -151,8 +151,9 @@ public:
   }
 
   template <class T>
-  std::enable_if_t<
-    has_to_string_v<T> && !std::is_convertible_v<T, std::string_view>, bool>
+  std::enable_if_t<has_to_string<T>::value
+                     && !std::is_convertible<T, std::string_view>::value,
+                   bool>
   builtin_inspect(const T& x) {
     auto str = to_string(x);
     if constexpr (std::is_convertible<decltype(str), const char*>::value) {
@@ -171,10 +172,9 @@ public:
       sep();
       result_ += "null";
       return true;
-    }
-    if constexpr (std::is_same_v<T, char>) {
+    } else if constexpr (std::is_same<T, char>::value) {
       return value(std::string_view{x, strlen(x)});
-    } else if constexpr (std::is_same_v<T, void>) {
+    } else if constexpr (std::is_same<T, void>::value) {
       sep();
       result_ += "*<";
       auto addr = reinterpret_cast<intptr_t>(x);
@@ -218,10 +218,10 @@ public:
 
   template <class T>
   static std::string render(const T& x) {
-    if constexpr (std::is_same_v<std::nullptr_t, T>) {
+    if constexpr (std::is_same<std::nullptr_t, T>::value) {
       return "null";
-    } else if constexpr (std::is_constructible_v<std::string_view, T>) {
-      if constexpr (std::is_pointer_v<T>) {
+    } else if constexpr (std::is_constructible<std::string_view, T>::value) {
+      if constexpr (std::is_pointer<T>::value) {
         if (x == nullptr)
           return "null";
       }

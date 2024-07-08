@@ -1,17 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/detail/assert.hpp"
 #include "caf/detail/type_list.hpp"
 #include "caf/flow/observer.hpp"
 #include "caf/flow/op/hot.hpp"
 #include "caf/flow/subscription.hpp"
 #include "caf/sec.hpp"
 
-#include <deque>
 #include <tuple>
 #include <utility>
 
@@ -26,9 +24,9 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  from_generator_sub(coordinator* parent, observer<output_type> out,
+  from_generator_sub(coordinator* ctx, observer<output_type> out,
                      const Generator& gen, const std::tuple<Steps...>& steps)
-    : parent_(parent), out_(std::move(out)), gen_(gen), steps_(steps) {
+    : ctx_(ctx), out_(std::move(out)), gen_(gen), steps_(steps) {
     // nop
   }
 
@@ -50,12 +48,16 @@ public:
 
   // -- implementation of subscription -----------------------------------------
 
-  coordinator* parent() const noexcept override {
-    return parent_;
-  }
-
   bool disposed() const noexcept override {
     return !out_;
+  }
+
+  void dispose() override {
+    if (out_) {
+      completed_ = true;
+      buf_.clear();
+      run_later();
+    }
   }
 
   void request(size_t n) override {
@@ -65,26 +67,12 @@ public:
   }
 
 private:
-  void do_dispose(bool from_external) override {
-    if (!out_)
-      return;
-    completed_ = true;
-    buf_.clear();
-    if (from_external) {
-      err_ = make_error(sec::disposed);
-      fin();
-    } else {
-      out_.release_later();
-    }
-  }
-
   void run_later() {
     if (!running_) {
       running_ = true;
-      parent_->delay_fn(
-        [strong_this = intrusive_ptr<from_generator_sub>{this}] { //
-          strong_this->do_run();
-        });
+      ctx_->delay_fn([strong_this = intrusive_ptr<from_generator_sub>{this}] {
+        strong_this->do_run();
+      });
     }
   }
 
@@ -113,6 +101,7 @@ private:
       out_.on_complete();
     else
       out_.on_error(err_);
+    out_ = nullptr;
   }
 
   void pull(size_t n) {
@@ -120,7 +109,7 @@ private:
     std::apply(fn, steps_);
   }
 
-  coordinator* parent_;
+  coordinator* ctx_;
   bool running_ = false;
   std::deque<output_type> buf_;
   bool completed_ = false;
@@ -132,9 +121,9 @@ private:
 };
 
 template <class Generator, class... Steps>
-using from_generator_output_t =    //
-  typename detail::tl_back_t<      //
-    type_list<Generator, Steps...> //
+using from_generator_output_t =            //
+  typename detail::tl_back_t<              //
+    detail::type_list<Generator, Steps...> //
     >::output_type;
 
 /// Converts a `Generator` to an @ref observable.
@@ -149,8 +138,8 @@ public:
 
   using super = hot<output_type>;
 
-  from_generator(coordinator* parent, Generator gen, std::tuple<Steps...> steps)
-    : super(parent), gen_(std::move(gen)), steps_(std::move(steps)) {
+  from_generator(coordinator* ctx, Generator gen, std::tuple<Steps...> steps)
+    : super(ctx), gen_(std::move(gen)), steps_(std::move(steps)) {
     // nop
   }
 
@@ -158,10 +147,10 @@ public:
 
   disposable subscribe(observer<output_type> out) override {
     using impl_t = from_generator_sub<Generator, Steps...>;
-    auto ptr = super::parent_->add_child(std::in_place_type<impl_t>, out, gen_,
-                                         steps_);
-    out.on_subscribe(subscription{ptr});
-    return ptr->as_disposable();
+    auto ptr = make_counted<impl_t>(super::ctx_, out, gen_, steps_);
+    auto sub = subscription{std::move(ptr)};
+    out.on_subscribe(sub);
+    return std::move(sub).as_disposable();
   }
 
 private:

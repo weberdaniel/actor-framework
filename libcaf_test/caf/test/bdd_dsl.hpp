@@ -1,8 +1,7 @@
 #pragma once
 
-#include "caf/test/dsl.hpp"
-
 #include "caf/detail/pp.hpp"
+#include "caf/test/dsl.hpp"
 
 #define SCENARIO(description)                                                  \
   namespace {                                                                  \
@@ -13,20 +12,6 @@
     CAF_UNIQUE(a){CAF_XSTR(CAF_SUITE), "SCENARIO " description, false};        \
   }                                                                            \
   void CAF_UNIQUE(test)::run_test_impl()
-
-#define TEST_CASE(description)                                                 \
-  namespace {                                                                  \
-  struct CAF_UNIQUE(test) : caf_test_case_auto_fixture {                       \
-    void run_test_impl();                                                      \
-  };                                                                           \
-  ::caf::test::detail::adder<::caf::test::test_impl<CAF_UNIQUE(test)>>         \
-    CAF_UNIQUE(a){CAF_XSTR(CAF_SUITE), description, false};                    \
-  }                                                                            \
-  void CAF_UNIQUE(test)::run_test_impl()
-
-#define SUBCASE(description)                                                   \
-  CAF_MESSAGE(description);                                                    \
-  if (true)
 
 #define GIVEN(description)                                                     \
   CAF_MESSAGE("GIVEN " description);                                           \

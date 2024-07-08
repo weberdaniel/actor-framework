@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -20,7 +20,7 @@ public:
     static constexpr size_t token_type = attachable::token::observer;
   };
 
-  void actor_exited(const error& rsn, scheduler* sched) override;
+  void actor_exited(const error& rsn, execution_unit* host) override;
 
   bool matches(const token& what) override;
 

@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 // This file is partially included in the manual, do not modify
 // without updating the references in the *.tex files!
@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include "caf/default_enum_inspect.hpp"
-#include "caf/detail/core_export.hpp"
-#include "caf/fwd.hpp"
-#include "caf/is_error_code_enum.hpp"
-
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <type_traits>
+
+#include "caf/default_enum_inspect.hpp"
+#include "caf/detail/core_export.hpp"
+#include "caf/fwd.hpp"
+#include "caf/is_error_code_enum.hpp"
 
 namespace caf {
 

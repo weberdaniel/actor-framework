@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -28,9 +28,9 @@ constexpr spawn_options operator+(spawn_options x, spawn_options y) {
 /// Denotes default settings.
 constexpr spawn_options no_spawn_options = spawn_options::no_flags;
 
-[[deprecated("call monitor directly instead")]]
-constexpr spawn_options monitored
-  = spawn_options::monitor_flag;
+/// Causes `spawn` to call `self->monitor(...) immediately
+/// after the new actor was spawned.
+constexpr spawn_options monitored = spawn_options::monitor_flag;
 
 /// Causes `spawn` to call `self->link_to(...) immediately
 /// after the new actor was spawned.
@@ -73,7 +73,7 @@ constexpr bool has_link_flag(spawn_options opts) {
 
 /// Checks whether the {@link monitored} flag is set in `opts`.
 constexpr bool has_monitor_flag(spawn_options opts) {
-  return has_spawn_option(opts, spawn_options::monitor_flag);
+  return has_spawn_option(opts, monitored);
 }
 
 /// Checks whether the {@link lazy_init} flag is set in `opts`.
@@ -92,8 +92,7 @@ constexpr bool is_unbound(spawn_options opts) {
 constexpr spawn_options make_unbound(spawn_options opts) {
   return static_cast<spawn_options>(
     (static_cast<int>(opts)
-     & ~(static_cast<int>(linked)
-         | static_cast<int>(spawn_options::monitor_flag))));
+     & ~(static_cast<int>(linked) | static_cast<int>(monitored))));
 }
 
 /// @endcond

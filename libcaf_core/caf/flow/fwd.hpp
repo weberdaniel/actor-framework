@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -27,12 +27,6 @@ namespace caf::flow {
 
 class coordinator;
 
-using coordinator_ptr = intrusive_ptr<coordinator>;
-
-class coordinated;
-
-using coordinated_ptr = intrusive_ptr<coordinated>;
-
 class subscription;
 
 template <class T>
@@ -49,9 +43,6 @@ class observable_def;
 
 template <class Generator>
 class generation_materializer;
-
-template <class T>
-class multicaster;
 
 /// A blueprint for an @ref observer that generates items and applies any number
 /// of processing steps immediately before emitting them.
@@ -134,15 +125,8 @@ struct assert_scheduled_actor_hdr {
                 "include 'caf/scheduled_actor/flow.hpp' for this method");
 };
 
-template <class T, class V = T>
+template <class T>
 using assert_scheduled_actor_hdr_t
-  = std::enable_if_t<assert_scheduled_actor_hdr<T>::value, V>;
+  = std::enable_if_t<assert_scheduled_actor_hdr<T>::value, T>;
 
 } // namespace caf::flow
-
-namespace caf::flow::op {
-
-template <class T>
-class base;
-
-} // namespace caf::flow::op

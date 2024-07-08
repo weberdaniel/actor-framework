@@ -1,15 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/async/fwd.hpp"
 #include "caf/cow_vector.hpp"
 #include "caf/defaults.hpp"
 #include "caf/detail/is_complete.hpp"
 #include "caf/disposable.hpp"
-#include "caf/flow/backpressure_overflow_strategy.hpp"
 #include "caf/flow/fwd.hpp"
 #include "caf/flow/op/base.hpp"
 #include "caf/flow/step/fwd.hpp"
@@ -18,7 +16,6 @@
 
 #include <cstddef>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -50,13 +47,6 @@ public:
     return *this;
   }
 
-  template <class Operator>
-  std::enable_if_t<std::is_base_of_v<op::base<T>, Operator>, observable&>
-  operator=(intrusive_ptr<Operator> ptr) noexcept {
-    pimpl_ = ptr;
-    return *this;
-  }
-
   observable() noexcept = default;
   observable(observable&&) noexcept = default;
   observable(const observable&) noexcept = default;
@@ -71,17 +61,12 @@ public:
   /// Creates a new observer that pushes all observed items to the resource.
   disposable subscribe(async::producer_resource<T> resource);
 
-  /// Subscribes a new observer that discards all items it receives.
+  /// Subscribes a new observer to the items emitted by this observable.
   disposable subscribe(ignore_t);
 
   /// Calls `on_next` for each item emitted by this observable.
   template <class OnNext>
   disposable for_each(OnNext on_next);
-
-  /// Calls `on_next` for each item emitted by this observable and `on_error` in
-  /// case of an error.
-  template <class OnNext, class OnError>
-  disposable for_each(OnNext on_next, OnError on_error);
 
   // -- transforming -----------------------------------------------------------
 
@@ -114,31 +99,13 @@ public:
   template <class Predicate>
   transformation<step::filter<Predicate>> filter(Predicate prediate);
 
-  /// Returns a transformation that ignores all items and only forwards calls to
-  /// `on_complete` and `on_error`.
-  transformation<step::ignore_elements<T>> ignore_elements();
-
   /// Returns a transformation that applies `f` to each input and emits the
   /// result of the function application.
   template <class F>
   transformation<step::map<F>> map(F f);
 
-  /// When producing items faster than the consumer can consume them, the
-  /// observable will buffer up to `buffer_size` items before raising an error.
-  observable<T> on_backpressure_buffer(size_t buffer_size,
-                                       backpressure_overflow_strategy strategy
-                                       = backpressure_overflow_strategy::fail);
-
   /// Recovers from errors by converting `on_error` to `on_complete` events.
   transformation<step::on_error_complete<T>> on_error_complete();
-
-  /// Recovers from errors by returning an item.
-  template <class ErrorHandler>
-  transformation<step::on_error_return<ErrorHandler>>
-  on_error_return(ErrorHandler error_handler);
-
-  /// Recovers from errors by returning an item.
-  transformation<step::on_error_return_item<T>> on_error_return_item(T item);
 
   /// Reduces the entire sequence of items to a single value. Other names for
   /// the algorithm are `accumulate` and `fold`.
@@ -147,33 +114,11 @@ public:
   template <class Init, class Reducer>
   transformation<step::reduce<Reducer>> reduce(Init init, Reducer reducer);
 
-  /// Applies a function to a sequence of items, and emit each successive value.
-  /// Other name for the algorithm is `accumulator`.
-  /// @param init The initial value for the reduction.
-  /// @param scanner Binary operation function that will be applied.
-  template <class Init, class Scanner>
-  transformation<step::scan<Scanner>> scan(Init init, Scanner scanner);
-
   /// Returns a transformation that selects all but the first `n` items.
   transformation<step::skip<T>> skip(size_t n);
 
-  /// Returns a transformation that selects only the item at index `n`.
-  transformation<step::element_at<T>> element_at(size_t n);
-
-  /// Returns a transformation that discards only the last `n` items.
-  transformation<step::skip_last<T>> skip_last(size_t n);
-
   /// Returns a transformation that selects only the first `n` items.
   transformation<step::take<T>> take(size_t n);
-
-  /// Returns a transformation that selects only the first item.
-  transformation<step::take<T>> first();
-
-  /// Returns a transformation that selects only the last `n` items.
-  transformation<step::take_last<T>> take_last(size_t n);
-
-  /// Returns a transformation that selects only the last item.
-  transformation<step::take_last<T>> last();
 
   /// Returns a transformation that selects all value until the `predicate`
   /// returns false.
@@ -183,15 +128,6 @@ public:
   /// Accumulates all values and emits only the final result.
   auto sum() {
     return reduce(T{}, [](T x, T y) { return x + y; });
-  }
-
-  /// Adds a value or observable to the beginning of current observable.
-  template <class Input>
-  auto start_with(Input value) {
-    if constexpr (is_observable_v<Input>)
-      return std::move(value).concat(*this);
-    else
-      return parent()->make_observable().just(std::move(value)).concat(*this);
   }
 
   /// Collects all values and emits all values at once in a @ref cow_vector.
@@ -204,16 +140,6 @@ public:
     return reduce(vector_type{}, append) //
       .filter([](const vector_type& xs) { return !xs.empty(); });
   }
-
-  /// Emits items in buffers of size @p count.
-  observable<cow_vector<T>> buffer(size_t count);
-
-  /// Emits items in buffers of size up to @p count and forces an item at
-  /// regular intervals .
-  observable<cow_vector<T>> buffer(size_t count, timespan period);
-
-  /// Emits the most recent item of the input observable once per interval.
-  observable<T> sample(timespan period);
 
   // -- combining --------------------------------------------------------------
 
@@ -238,15 +164,6 @@ public:
   /// all observables returned by `f`.
   template <class Out = output_type, class F>
   auto concat_map(F f);
-
-  /// Creates an @ref observable that combines the emitted from all passed
-  /// source observables by applying a function object.
-  /// @param fn The zip function. Takes one element from each input at a time
-  ///           and reduces them into a single result.
-  /// @param input0 The first additional input.
-  /// @param inputs Additional inputs, if any.
-  template <class F, class T0, class... Ts>
-  auto zip_with(F fn, T0 input0, Ts... inputs);
 
   // -- splitting --------------------------------------------------------------
 
@@ -284,12 +201,6 @@ public:
     return fn(std::move(*this));
   }
 
-  // -- batching ---------------------------------------------------------------
-
-  /// Like @c buffer, but wraps the collected items into type-erased batches.
-  observable<async::batch> collect_batches(timespan max_delay,
-                                           size_t max_items);
-
   // -- observing --------------------------------------------------------------
 
   /// Observes items from this observable on another @ref coordinator.
@@ -316,48 +227,8 @@ public:
   async::consumer_resource<T> to_resource() {
     return to_resource(defaults::flow::buffer_size, defaults::flow::min_demand);
   }
-
-  /// Creates a publisher that makes emitted items available asynchronously.
-  async::publisher<T> to_publisher();
-
-  /// Creates a type-erased stream that makes emitted items available in
-  /// batches. Requires that this observable runs on an actor, otherwise returns
-  /// an invalid stream.
-  /// @param name The human-readable name for this stream.
-  /// @param max_delay The maximum delay between emitting two batches.
-  /// @param max_items_per_batch The maximum amount of items per batch.
-  /// @returns a @ref stream that makes this observable available to other
-  ///          actors or an invalid stream if this observable does not run on an
-  ///          actor.
-  template <class U = T>
-  stream
-  to_stream(cow_string name, timespan max_delay, size_t max_items_per_batch);
-
-  /// @copydoc to_stream(cow_string, timespan, size_t)
-  template <class U = T>
-  stream
-  to_stream(std::string name, timespan max_delay, size_t max_items_per_batch);
-
-  /// Creates a stream that makes emitted items available in batches. Requires
-  /// that this observable runs on an actor, otherwise returns an invalid
-  /// stream.
-  /// @param name The human-readable name for this stream.
-  /// @param max_delay The maximum delay between emitting two batches.
-  /// @param max_items_per_batch The maximum amount of items per batch.
-  /// @returns a @ref typed_stream that makes this observable available to other
-  ///          actors or an invalid stream if this observable does not run on an
-  ///          actor.
-  template <class U = T>
-  typed_stream<U> to_typed_stream(cow_string name, timespan max_delay,
-                                  size_t max_items_per_batch);
-
-  /// @copydoc to_typed_stream(cow_string, timespan, size_t)
-  template <class U = T>
-  typed_stream<U> to_typed_stream(std::string name, timespan max_delay,
-                                  size_t max_items_per_batch);
-
   const observable& as_observable() const& noexcept {
-    return *this;
+    return std::move(*this);
   }
 
   observable&& as_observable() && noexcept {
@@ -387,8 +258,8 @@ public:
   }
 
   /// @pre `valid()`
-  coordinator* parent() const {
-    return pimpl_->parent();
+  coordinator* ctx() const {
+    return pimpl_->ctx();
   }
 
   // -- swapping ---------------------------------------------------------------
@@ -402,6 +273,18 @@ private:
 
   pimpl_type pimpl_;
 };
+
+/// Convenience function for creating an @ref observable from a concrete
+/// operator type.
+/// @relates observable
+template <class Operator, class... Ts>
+observable<typename Operator::output_type>
+make_observable(coordinator* ctx, Ts&&... xs) {
+  using out_t = typename Operator::output_type;
+  using ptr_t = intrusive_ptr<op::base<out_t>>;
+  ptr_t ptr{new Operator(ctx, std::forward<Ts>(xs)...), false};
+  return observable<out_t>{std::move(ptr)};
+}
 
 // Note: the definition of all member functions is in observable.hpp.
 

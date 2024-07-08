@@ -1,20 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/flow/coordinated.hpp"
-#include "caf/flow/coordinator.hpp"
-#include "caf/intrusive_ptr.hpp"
-#include "caf/ref_counted.hpp"
-#include "caf/timespan.hpp"
-
 #include <condition_variable>
-#include <deque>
 #include <map>
 #include <mutex>
-#include <vector>
+
+#include "caf/flow/coordinator.hpp"
+#include "caf/make_counted.hpp"
+#include "caf/ref_counted.hpp"
 
 namespace caf::flow {
 
@@ -28,15 +24,6 @@ public:
   // -- execution --------------------------------------------------------------
 
   void run();
-
-  size_t run_some();
-
-  template <class Rep, class Period>
-  size_t run_some(std::chrono::duration<Rep, Period> relative_timeout) {
-    return run_some(steady_time() + relative_timeout);
-  }
-
-  size_t run_some(steady_time_point timeout);
 
   // -- reference counting -----------------------------------------------------
 
@@ -52,20 +39,9 @@ public:
     ptr->deref();
   }
 
-  // -- properties -------------------------------------------------------------
-
-  /// Returns the number of pending (delayed and scheduled) actions.
-  [[nodiscard]] size_t pending_actions() const noexcept;
-
   // -- lifetime management ----------------------------------------------------
 
-  void release_later(coordinated_ptr& child) override;
-
   void watch(disposable what) override;
-
-  size_t watched_disposables_count() const noexcept {
-    return watched_disposables_.size();
-  }
 
   // -- time -------------------------------------------------------------------
 
@@ -84,22 +60,15 @@ private:
 
   action next(bool blocking);
 
-  action next(steady_time_point timeout);
-
   void drop_disposed_flows();
 
-  /// Stores objects that need to be disposed before returning from `run`.
   std::vector<disposable> watched_disposables_;
 
-  /// Stores children that were marked for release while running an action.
-  std::vector<coordinated_ptr> released_;
-
-  /// Stores delayed actions until they are due.
   std::multimap<steady_time_point, action> delayed_;
 
   mutable std::mutex mtx_;
   std::condition_variable cv_;
-  std::deque<action> actions_;
+  std::vector<action> actions_;
 };
 
 using scoped_coordinator_ptr = intrusive_ptr<scoped_coordinator>;

@@ -1,17 +1,18 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
 #include "caf/detail/core_export.hpp"
+
+#include <atomic>
+#include <cstdint>
+
 #include "caf/fwd.hpp"
 #include "caf/span.hpp"
 #include "caf/telemetry/label.hpp"
 #include "caf/telemetry/metric_type.hpp"
-
-#include <atomic>
-#include <cstdint>
 
 namespace caf::telemetry {
 
@@ -76,22 +77,10 @@ public:
     return ++value_;
   }
 
-  /// Increments the gauge by 1.
-  /// @returns The old value of the gauge.
-  int64_t operator++(int) noexcept {
-    return value_++;
-  }
-
   /// Decrements the gauge by 1.
   /// @returns The new value of the gauge.
   int64_t operator--() noexcept {
     return --value_;
-  }
-
-  /// Decrements the gauge by 1.
-  /// @returns The old value of the gauge.
-  int64_t operator--(int) noexcept {
-    return value_--;
   }
 
   // -- observers --------------------------------------------------------------

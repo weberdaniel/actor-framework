@@ -1,13 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/fwd.hpp"
-#include "caf/type_list.hpp"
-
 #include <tuple>
+
+#include "caf/detail/type_list.hpp"
+#include "caf/fwd.hpp"
 
 namespace caf {
 
@@ -30,22 +30,31 @@ struct response_type<none_t, Xs...> {
 
 // end of recursion (suppress type definitions for enabling SFINAE)
 template <class... Xs>
-struct response_type<type_list<>, Xs...> {
+struct response_type<detail::type_list<>, Xs...> {
   static constexpr bool valid = false;
 };
 
 // case #1: no match
-template <class... Out, class... In, class... Fs, class... Xs>
-struct response_type<type_list<result<Out...>(In...), Fs...>, Xs...>
-  : response_type<type_list<Fs...>, Xs...> {};
+template <class Out, class... In, class... Fs, class... Xs>
+struct response_type<detail::type_list<Out(In...), Fs...>, Xs...>
+  : response_type<detail::type_list<Fs...>, Xs...> {};
 
-// case #2: match `result<Out...>(In...)`
+// case #2.a: match `result<Out...>(In...)`
 template <class... Out, class... In, class... Fs>
-struct response_type<type_list<result<Out...>(In...), Fs...>, In...> {
+struct response_type<detail::type_list<result<Out...>(In...), Fs...>, In...> {
   static constexpr bool valid = true;
-  using type = type_list<Out...>;
+  using type = detail::type_list<Out...>;
   using tuple_type = std::tuple<Out...>;
   using delegated_type = delegated<Out...>;
+};
+
+// case #2.b: match `Out(In...)`
+template <class Out, class... In, class... Fs>
+struct response_type<detail::type_list<Out(In...), Fs...>, In...> {
+  static constexpr bool valid = true;
+  using type = detail::type_list<Out>;
+  using tuple_type = std::tuple<Out>;
+  using delegated_type = delegated<Out>;
 };
 
 /// Computes the response message type for input `In...` from the list of
@@ -56,16 +65,17 @@ using response_type_t = typename response_type<Fs, In...>::type;
 /// Computes the response message type for input `In...` from the list of
 /// message passing interfaces `Fs` and returns the corresponding
 /// `delegated<T>`.
-template <class Handle, class... In>
+template <class Fs, class... In>
 using delegated_response_type_t =
-  typename response_type<typename Handle::signatures, In...>::delegated_type;
+  typename response_type<Fs, In...>::delegated_type;
 
 /// Unboxes `Xs` and calls `response_type`.
 template <class Ts, class Xs>
 struct response_type_unbox;
 
 template <class Ts, class... Xs>
-struct response_type_unbox<Ts, type_list<Xs...>> : response_type<Ts, Xs...> {};
+struct response_type_unbox<Ts, detail::type_list<Xs...>>
+  : response_type<Ts, Xs...> {};
 
 template <class Ts>
 struct response_type_unbox<Ts, message> : response_type<Ts, message> {};

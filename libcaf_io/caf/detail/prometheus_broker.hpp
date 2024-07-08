@@ -1,20 +1,19 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
-
-#include "caf/io/broker.hpp"
-
-#include "caf/byte_buffer.hpp"
-#include "caf/detail/io_export.hpp"
-#include "caf/fwd.hpp"
-#include "caf/telemetry/collector/prometheus.hpp"
-#include "caf/telemetry/importer/process.hpp"
 
 #include <ctime>
 #include <unordered_map>
 #include <vector>
+
+#include "caf/byte_buffer.hpp"
+#include "caf/detail/io_export.hpp"
+#include "caf/fwd.hpp"
+#include "caf/io/broker.hpp"
+#include "caf/telemetry/collector/prometheus.hpp"
+#include "caf/telemetry/importer/process.hpp"
 
 namespace caf::detail {
 

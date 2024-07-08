@@ -1,8 +1,15 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <cstddef>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 
 #include "caf/detail/core_export.hpp"
 #include "caf/detail/squashed_int.hpp"
@@ -11,13 +18,6 @@
 #include "caf/load_inspector_base.hpp"
 #include "caf/sec.hpp"
 #include "caf/span.hpp"
-
-#include <cstddef>
-#include <string>
-#include <string_view>
-#include <tuple>
-#include <type_traits>
-#include <utility>
 
 namespace caf {
 
@@ -33,34 +33,28 @@ public:
   // -- constructors, destructors, and assignment operators --------------------
 
   template <class Container>
-  explicit binary_deserializer(const Container& input) noexcept {
-    reset(as_bytes(make_span(input)));
-  }
-
-  template <class Container>
   binary_deserializer(actor_system& sys, const Container& input) noexcept
-    : context_(&sys) {
+    : binary_deserializer(sys) {
     reset(as_bytes(make_span(input)));
   }
 
   template <class Container>
-  [[deprecated("use the single-argument constructor instead")]] //
-  binary_deserializer(std::nullptr_t, const Container& input) noexcept {
+  binary_deserializer(execution_unit* ctx, const Container& input) noexcept
+    : context_(ctx) {
     reset(as_bytes(make_span(input)));
   }
 
-  binary_deserializer(const void* buf, size_t size) noexcept {
-    reset(make_span(static_cast<const std::byte*>(buf), size));
-  }
-
-  [[deprecated("use the two-argument constructor instead")]] //
-  binary_deserializer(std::nullptr_t, const void* buf, size_t size) noexcept {
-    reset(make_span(static_cast<const std::byte*>(buf), size));
+  binary_deserializer(execution_unit* ctx, const void* buf,
+                      size_t size) noexcept
+    : binary_deserializer(
+      ctx, make_span(reinterpret_cast<const std::byte*>(buf), size)) {
+    // nop
   }
 
   binary_deserializer(actor_system& sys, const void* buf, size_t size) noexcept
-    : context_(&sys) {
-    reset(make_span(static_cast<const std::byte*>(buf), size));
+    : binary_deserializer(
+      sys, make_span(reinterpret_cast<const std::byte*>(buf), size)) {
+    // nop
   }
 
   // -- properties -------------------------------------------------------------
@@ -76,7 +70,7 @@ public:
   }
 
   /// Returns the current execution unit.
-  actor_system* context() const noexcept {
+  execution_unit* context() const noexcept {
     return context_;
   }
 
@@ -180,7 +174,7 @@ public:
   bool value(uint64_t& x) noexcept;
 
   template <class T>
-  std::enable_if_t<std::is_integral_v<T>, bool> value(T& x) noexcept {
+  std::enable_if_t<std::is_integral<T>::value, bool> value(T& x) noexcept {
     auto tmp = detail::squashed_int_t<T>{0};
     if (value(tmp)) {
       x = static_cast<T>(tmp);
@@ -221,7 +215,7 @@ private:
   const std::byte* end_;
 
   /// Provides access to the ::proxy_registry and to the ::actor_system.
-  actor_system* context_;
+  execution_unit* context_;
 };
 
 } // namespace caf

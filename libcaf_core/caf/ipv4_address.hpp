@@ -1,17 +1,17 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <array>
+#include <cstdint>
+#include <string>
 
 #include "caf/byte_address.hpp"
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
-
-#include <array>
-#include <cstdint>
-#include <string>
 
 namespace caf {
 
@@ -80,13 +80,6 @@ public:
   const array_type& data() const noexcept {
     return bytes_;
   }
-  // -- factories --------------------------------------------------------------
-
-  /// Returns `INADDR_ANY`, i.e., `0.0.0.0`.
-  static ipv4_address any() noexcept;
-
-  /// Returns `INADDR_LOOPBACK`, i.e., `127.0.0.1`.
-  static ipv4_address loopback() noexcept;
 
   // -- comparison -------------------------------------------------------------
 

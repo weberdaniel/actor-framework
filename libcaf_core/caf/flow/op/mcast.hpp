@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -8,20 +8,126 @@
 #include "caf/flow/observer.hpp"
 #include "caf/flow/op/empty.hpp"
 #include "caf/flow/op/hot.hpp"
-#include "caf/flow/op/ucast.hpp"
 #include "caf/flow/subscription.hpp"
 #include "caf/intrusive_ptr.hpp"
+#include "caf/make_counted.hpp"
 
 #include <algorithm>
 #include <deque>
 #include <memory>
-#include <numeric>
 
 namespace caf::flow::op {
 
 /// State shared between one multicast operator and one subscribed observer.
 template <class T>
-using mcast_sub_state = ucast_sub_state<T>;
+class mcast_sub_state : public detail::plain_ref_counted {
+public:
+  friend void intrusive_ptr_add_ref(const mcast_sub_state* ptr) noexcept {
+    ptr->ref();
+  }
+
+  friend void intrusive_ptr_release(const mcast_sub_state* ptr) noexcept {
+    ptr->deref();
+  }
+
+  mcast_sub_state(coordinator* ctx, observer<T> out)
+    : ctx(ctx), out(std::move(out)) {
+    // nop
+  }
+
+  coordinator* ctx;
+  std::deque<T> buf;
+  size_t demand = 0;
+  observer<T> out;
+  bool disposed = false;
+  bool closed = false;
+  bool running = false;
+  error err;
+
+  action when_disposed;
+  action when_consumed_some;
+
+  void push(const T& item) {
+    if (disposed) {
+      // nop
+    } else if (demand > 0 && !running) {
+      CAF_ASSERT(out);
+      CAF_ASSERT(buf.empty());
+      --demand;
+      out.on_next(item);
+      if (when_consumed_some)
+        ctx->delay(when_consumed_some);
+    } else {
+      buf.push_back(item);
+    }
+  }
+
+  void close() {
+    if (!disposed) {
+      closed = true;
+      if (!running && buf.empty()) {
+        disposed = true;
+        out.on_complete();
+        out = nullptr;
+        when_disposed = nullptr;
+        when_consumed_some = nullptr;
+      }
+    }
+  }
+
+  void abort(const error& reason) {
+    if (!disposed && !err) {
+      closed = true;
+      err = reason;
+      if (!running && buf.empty()) {
+        disposed = true;
+        out.on_error(reason);
+        out = nullptr;
+        when_disposed = nullptr;
+        when_consumed_some = nullptr;
+      }
+    }
+  }
+
+  void do_dispose() {
+    if (out) {
+      out.on_complete();
+      out = nullptr;
+    }
+    if (when_disposed) {
+      ctx->delay(std::move(when_disposed));
+    }
+    if (when_consumed_some) {
+      when_consumed_some.dispose();
+      when_consumed_some = nullptr;
+    }
+    buf.clear();
+    demand = 0;
+    disposed = true;
+  }
+
+  void do_run() {
+    auto guard = detail::make_scope_guard([this] { running = false; });
+    if (!disposed) {
+      auto got_some = demand > 0 && !buf.empty();
+      for (bool run = got_some; run; run = demand > 0 && !buf.empty()) {
+        out.on_next(buf.front());
+        buf.pop_front();
+        --demand;
+      }
+      if (buf.empty() && closed) {
+        if (err)
+          out.on_error(err);
+        else
+          out.on_complete();
+        out = nullptr;
+        do_dispose();
+      } else if (got_some && when_consumed_some) {
+        ctx->delay(when_consumed_some);
+      }
+    }
+  }
+};
 
 template <class T>
 using mcast_sub_state_ptr = intrusive_ptr<mcast_sub_state<T>>;
@@ -31,35 +137,34 @@ class mcast_sub : public subscription::impl_base {
 public:
   // -- constructors, destructors, and assignment operators --------------------
 
-  mcast_sub(coordinator* parent, mcast_sub_state_ptr<T> state)
-    : parent_(parent), state_(std::move(state)) {
+  mcast_sub(coordinator* ctx, mcast_sub_state_ptr<T> state)
+    : ctx_(ctx), state_(std::move(state)) {
     // nop
   }
 
   // -- implementation of subscription -----------------------------------------
 
-  coordinator* parent() const noexcept override {
-    return parent_;
-  }
-
   bool disposed() const noexcept override {
-    return !state_ || state_->disposed;
+    return !state_;
   }
 
-  void request(size_t n) override {
-    state_->request(n);
-  }
-
-private:
-  void do_dispose(bool) override {
+  void dispose() override {
     if (state_) {
-      auto state = std::move(state_);
-      state->dispose();
+      ctx_->delay_fn([state = std::move(state_)]() { state->do_dispose(); });
     }
   }
 
+  void request(size_t n) override {
+    state_->demand += n;
+    if (!state_->running) {
+      state_->running = true;
+      ctx_->delay_fn([state = state_] { state->do_run(); });
+    }
+  }
+
+private:
   /// Stores the context (coordinator) that runs this flow.
-  coordinator* parent_;
+  coordinator* ctx_;
 
   /// Stores a handle to the state.
   mcast_sub_state_ptr<T> state_;
@@ -67,7 +172,7 @@ private:
 
 // Base type for *hot* operators that multicast data to subscribed observers.
 template <class T>
-class mcast : public hot<T>, public ucast_sub_state_listener<T> {
+class mcast : public hot<T> {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -81,36 +186,22 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  explicit mcast(coordinator* parent) : super(parent) {
+  explicit mcast(coordinator* ctx) : super(ctx) {
     // nop
   }
 
-  ~mcast() override {
-    close();
-  }
-
-  // -- broadcasting -----------------------------------------------------------
-
   /// Pushes @p item to all subscribers.
-  /// @returns `true` if all observers consumed the item immediately without
-  ///          buffering it, `false` otherwise.
-  bool push_all(const T& item) {
-    // Note: we can't use all_of here because we need to call push on all
-    //      observers and the algorithm would short-circuit.
-    return std::accumulate(states_.begin(), states_.end(), true,
-                           [&item](bool res, const state_ptr_type& ptr) {
-                             return res & ptr->push(item);
-                           });
+  void push_all(const T& item) {
+    for (auto& state : states_)
+      state->push(item);
   }
 
   /// Closes the operator, eventually emitting on_complete on all observers.
   void close() {
     if (!closed_) {
       closed_ = true;
-      for (auto& state : states_) {
-        state->listener = nullptr;
+      for (auto& state : states_)
         state->close();
-      }
       states_.clear();
     }
   }
@@ -119,51 +210,58 @@ public:
   void abort(const error& reason) {
     if (!closed_) {
       closed_ = true;
-      for (auto& state : states_) {
-        state->listener = nullptr;
+      for (auto& state : states_)
         state->abort(reason);
-      }
       states_.clear();
-      err_ = reason;
     }
   }
 
-  // -- properties -------------------------------------------------------------
-
   size_t max_demand() const noexcept {
-    return std::accumulate(states_.begin(), states_.end(), size_t{0},
-                           [](size_t res, const state_ptr_type& state) {
-                             return std::max(res, state->demand);
-                           });
+    if (states_.empty()) {
+      return 0;
+    } else {
+      auto pred = [](const state_ptr_type& x, const state_ptr_type& y) {
+        return x->demand < y->demand;
+      };
+      auto& ptr = *std::max_element(states_.begin(), states_.end(), pred);
+      return ptr->demand;
+    }
   }
 
   size_t min_demand() const noexcept {
     if (states_.empty()) {
       return 0;
+    } else {
+      auto pred = [](const state_ptr_type& x, const state_ptr_type& y) {
+        return x->demand < y->demand;
+      };
+      auto& ptr = *std::min_element(states_.begin(), states_.end(), pred);
+      ptr->demand;
     }
-    return std::accumulate(states_.begin() + 1, states_.end(),
-                           states_.front()->demand,
-                           [](size_t res, const state_ptr_type& state) {
-                             return std::min(res, state->demand);
-                           });
   }
 
   size_t max_buffered() const noexcept {
-    return std::accumulate(states_.begin(), states_.end(), size_t{0},
-                           [](size_t res, const state_ptr_type& state) {
-                             return std::max(res, state->buf.size());
-                           });
+    if (states_.empty()) {
+      return 0;
+    } else {
+      auto pred = [](const state_ptr_type& x, const state_ptr_type& y) {
+        return x->buf.size() < y->buf.size();
+      };
+      auto& ptr = *std::max_element(states_.begin(), states_.end(), pred);
+      return ptr->buf.size();
+    }
   }
 
   size_t min_buffered() const noexcept {
     if (states_.empty()) {
       return 0;
+    } else {
+      auto pred = [](const state_ptr_type& x, const state_ptr_type& y) {
+        return x->buf.size() < y->buf.size();
+      };
+      auto& ptr = *std::min_element(states_.begin(), states_.end(), pred);
+      ptr->buf.size();
     }
-    return std::accumulate(states_.begin() + 1, states_.end(),
-                           states_.front()->buf.size(),
-                           [](size_t res, const state_ptr_type& state) {
-                             return std::min(res, state->buf.size());
-                           });
   }
 
   /// Queries whether there is at least one observer subscribed to the operator.
@@ -176,54 +274,30 @@ public:
     return states_.size();
   }
 
-  /// @private
-  const auto& observers() const noexcept {
-    return states_;
-  }
-
-  // -- state management -------------------------------------------------------
-
-  /// Adds state for a new observer to the operator.
   state_ptr_type add_state(observer_type out) {
-    auto state = super::parent_->add_child(std::in_place_type<state_type>,
-                                           std::move(out));
-    state->listener = this;
+    auto state = make_counted<state_type>(super::ctx_, std::move(out));
+    auto mc = strong_this();
+    state->when_disposed = make_action([mc, state]() mutable { //
+      mc->do_dispose(state);
+    });
+    state->when_consumed_some = make_action([mc, state]() mutable { //
+      mc->on_consumed_some(*state);
+    });
     states_.push_back(state);
     return state;
   }
 
-  // -- implementation of observable -------------------------------------------
-
-  /// Adds a new observer to the operator.
-  disposable subscribe(observer_type out) override {
+  disposable subscribe(observer<T> out) override {
     if (!closed_) {
-      auto ptr = super::parent_->add_child(std::in_place_type<mcast_sub<T>>,
-                                           add_state(out));
+      auto ptr = make_counted<mcast_sub<T>>(super::ctx_, add_state(out));
       out.on_subscribe(subscription{ptr});
       return disposable{std::move(ptr)};
+    } else if (!err_) {
+      return make_counted<op::empty<T>>(super::ctx_)->subscribe(out);
+    } else {
+      out.on_error(err_);
+      return disposable{};
     }
-    if (!err_) {
-      return super::empty_subscription(out);
-    }
-    return super::fail_subscription(out, err_);
-  }
-
-  // -- implementation of ucast_sub_state_listener -----------------------------
-
-  void on_disposed(state_type* ptr, bool from_external) final {
-    super::parent_->delay_fn(
-      [mc = strong_this(), sptr = state_ptr_type{ptr}, from_external] {
-        if (auto i = std::find(mc->states_.begin(), mc->states_.end(), sptr);
-            i != mc->states_.end()) {
-          // We don't care about preserving the order of elements in the vector.
-          // Hence, we can swap the element to the back and then pop it.
-          auto last = mc->states_.end() - 1;
-          if (i != last)
-            std::swap(*i, *last);
-          mc->states_.pop_back();
-          mc->do_dispose(sptr, from_external);
-        }
-      });
   }
 
 protected:
@@ -236,8 +310,19 @@ private:
     return {this};
   }
 
-  /// Called whenever a state is disposed.
-  virtual void do_dispose(const state_ptr_type&, bool) {
+  void do_dispose(state_ptr_type& state) {
+    auto e = states_.end();
+    if (auto i = std::find(states_.begin(), e, state); i != e) {
+      states_.erase(i);
+      on_dispose(*state);
+    }
+  }
+
+  virtual void on_dispose(state_type&) {
+    // nop
+  }
+
+  virtual void on_consumed_some(state_type&) {
     // nop
   }
 };

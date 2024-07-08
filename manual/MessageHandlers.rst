@@ -11,7 +11,8 @@ Definition and Composition
 --------------------------
 
 As the name implies, a ``behavior`` defines the response of an actor to
-messages it receives.
+messages it receives. The optional timeout allows an actor to dynamically
+change its behavior when not receiving message after a certain amount of time.
 
 .. code-block:: C++
 

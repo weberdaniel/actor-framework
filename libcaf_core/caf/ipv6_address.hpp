@@ -1,19 +1,19 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <array>
+#include <cstdint>
+#include <initializer_list>
+#include <string>
 
 #include "caf/byte_address.hpp"
 #include "caf/detail/comparable.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/fwd.hpp"
 #include "caf/ipv4_address.hpp"
-
-#include <array>
-#include <cstdint>
-#include <initializer_list>
-#include <string>
 
 namespace caf {
 
@@ -98,14 +98,6 @@ public:
   bool zero() const noexcept {
     return half_segments_[0] == 0 && half_segments_[1] == 0;
   }
-
-  // -- factories --------------------------------------------------------------
-
-  /// Returns `INADDR6_ANY`, i.e., `::`.
-  static ipv6_address any() noexcept;
-
-  /// Returns `INADDR6_LOOPBACK`, i.e., `::1`.
-  static ipv6_address loopback() noexcept;
 
   // -- inspection -------------------------------------------------------------
 

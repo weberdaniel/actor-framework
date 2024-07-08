@@ -1,15 +1,11 @@
 // Showcases custom message types with a sealed class hierarchy.
 
-#include "caf/actor_ostream.hpp"
-#include "caf/actor_system.hpp"
-#include "caf/caf_main.hpp"
-#include "caf/raise_error.hpp"
-#include "caf/scoped_actor.hpp"
-#include "caf/type_id.hpp"
-
 #include <cassert>
+#include <iostream>
 #include <memory>
 #include <utility>
+
+#include "caf/all.hpp"
 
 class circle;
 class shape;
@@ -176,8 +172,8 @@ struct variant_inspector_traits<shape_ptr> {
 
   // Assigns a value to x.
   template <class U>
-  static void assign(value_type& x, [[maybe_unused]] U value) {
-    if constexpr (std::is_same_v<U, none_t>)
+  static void assign(value_type& x, U value) {
+    if constexpr (std::is_same<U, none_t>::value)
       x.reset();
     else
       x = std::make_shared<U>(std::move(value));
@@ -218,32 +214,31 @@ struct inspector_access<shape_ptr> : variant_inspector_access<shape_ptr> {
 
 shape_ptr serialization_roundtrip(const shape_ptr& in) {
   caf::byte_buffer buf;
-  caf::binary_serializer sink{buf};
+  caf::binary_serializer sink{nullptr, buf};
   if (!sink.apply(in)) {
-    CAF_RAISE_ERROR("failed to serialize shape!");
+    std::cerr << "failed to serialize shape!\n";
     return nullptr;
   }
   shape_ptr out;
-  caf::binary_deserializer source{buf};
+  caf::binary_deserializer source{nullptr, buf};
   if (!source.apply(out)) {
-    CAF_RAISE_ERROR("failed to deserialize shape!");
+    std::cerr << "failed to deserialize shape!\n";
     return nullptr;
   }
   return out;
 }
 
-void caf_main(caf::actor_system& sys) {
-  caf::scoped_actor self{sys};
+void caf_main(caf::actor_system&) {
   std::vector<shape_ptr> shapes;
   shapes.emplace_back(nullptr);
   shapes.emplace_back(rectangle::make({10, 10}, {20, 20}));
   shapes.emplace_back(circle::make({15, 15}, 5));
-  self->println("shapes:");
+  std::cout << "shapes:\n";
   for (auto& ptr : shapes) {
-    self->println("- value: {}", ptr);
+    std::cout << "  shape: " << caf::deep_to_string(ptr) << '\n';
     auto copy = serialization_roundtrip(ptr);
     assert(!ptr || ptr.get() != copy.get());
-    self->println("-  copy: {}", copy);
+    std::cout << "   copy: " << caf::deep_to_string(copy) << '\n';
   }
 }
 

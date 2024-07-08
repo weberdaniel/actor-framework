@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -29,16 +29,16 @@ public:
   template <class Next, class... Steps>
   bool on_next(const input_type& item, Next& next, Steps&... steps) {
     if (remaining_ > 0) {
-      if (next.on_next(item, steps...))
-        --remaining_;
-      else
-        return false;
+      if (next.on_next(item, steps...)) {
+        if (--remaining_ > 0) {
+          return true;
+        } else {
+          next.on_complete(steps...);
+          return false;
+        }
+      }
     }
-    if (remaining_ == 0) {
-      next.on_complete(steps...);
-      return false;
-    }
-    return true;
+    return false;
   }
 
   template <class Next, class... Steps>

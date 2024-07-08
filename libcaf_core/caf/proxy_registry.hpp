@@ -1,8 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <functional>
+#include <map>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
 
 #include "caf/actor_addr.hpp"
 #include "caf/actor_cast.hpp"
@@ -11,12 +17,6 @@
 #include "caf/exit_reason.hpp"
 #include "caf/fwd.hpp"
 #include "caf/node_id.hpp"
-
-#include <functional>
-#include <map>
-#include <mutex>
-#include <unordered_map>
-#include <utility>
 
 namespace caf {
 
@@ -35,12 +35,6 @@ public:
     /// Sets the thread-local last-hop pointer to detect indirect connections.
     virtual void set_last_hop(node_id* ptr) = 0;
   };
-
-  /// Returns the current proxy registry for the calling thread.
-  static proxy_registry* current() noexcept;
-
-  /// Sets the current proxy registry for the calling thread.
-  static void current(proxy_registry*) noexcept;
 
   proxy_registry(actor_system& sys, backend& be);
 

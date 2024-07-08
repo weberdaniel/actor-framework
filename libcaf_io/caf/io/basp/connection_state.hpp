@@ -1,16 +1,11 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/default_enum_inspect.hpp"
 #include "caf/detail/io_export.hpp"
 #include "caf/sec.hpp"
-
-#include <cstdint>
-#include <string>
-#include <type_traits>
 
 namespace caf::io::basp {
 
@@ -32,8 +27,8 @@ enum connection_state {
   incompatible_versions,
   /// See `sec::incompatible_application_ids`.
   incompatible_application_ids,
-  /// See `sec::malformed_message`.
-  malformed_message,
+  /// See `sec::malformed_basp_message`.
+  malformed_basp_message,
   /// See `sec::serializing_basp_payload_failed`.
   serializing_basp_payload_failed,
   /// See `sec::redundant_connection`.
@@ -60,8 +55,8 @@ inline sec to_sec(connection_state x) noexcept {
       return sec::incompatible_versions;
     case incompatible_application_ids:
       return sec::incompatible_application_ids;
-    case malformed_message:
-      return sec::malformed_message;
+    case malformed_basp_message:
+      return sec::malformed_basp_message;
     case serializing_basp_payload_failed:
       return sec::serializing_basp_payload_failed;
     case redundant_connection:
@@ -71,21 +66,7 @@ inline sec to_sec(connection_state x) noexcept {
   }
 }
 
-/// @relates connection_state
 CAF_IO_EXPORT std::string to_string(connection_state x);
-
-/// @relates connection_state
-CAF_IO_EXPORT bool from_string(std::string_view, connection_state&);
-
-/// @relates connection_state
-CAF_IO_EXPORT bool from_integer(std::underlying_type_t<connection_state>,
-                                connection_state&);
-
-/// @relates connection_state
-template <class Inspector>
-bool inspect(Inspector& f, connection_state& x) {
-  return default_enum_inspect(f, x);
-}
 
 /// @}
 

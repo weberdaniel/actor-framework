@@ -1,10 +1,13 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/detail/assert.hpp"
+#include <algorithm>
+#include <type_traits>
+
+#include "caf/config.hpp"
 #include "caf/fwd.hpp"
 #include "caf/settings.hpp"
 #include "caf/span.hpp"
@@ -12,9 +15,6 @@
 #include "caf/telemetry/gauge.hpp"
 #include "caf/telemetry/label.hpp"
 #include "caf/telemetry/metric_type.hpp"
-
-#include <algorithm>
-#include <type_traits>
 
 namespace caf::telemetry {
 
@@ -37,9 +37,9 @@ public:
 
   // -- constants --------------------------------------------------------------
 
-  static constexpr metric_type runtime_type = std::is_same_v<value_type, double>
-                                                ? metric_type::dbl_histogram
-                                                : metric_type::int_histogram;
+  static constexpr metric_type runtime_type
+    = std::is_same<value_type, double>::value ? metric_type::dbl_histogram
+                                              : metric_type::int_histogram;
 
   // -- constructors, destructors, and assignment operators --------------------
 

@@ -1,16 +1,15 @@
 
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
+
+#include <limits>
 
 #include "caf/config.hpp"
 #include "caf/detail/parser/ascii_to_int.hpp"
 #include "caf/detail/type_traits.hpp"
-
-#include <limits>
-#include <type_traits>
 
 namespace caf::detail::parser {
 
@@ -19,7 +18,8 @@ namespace caf::detail::parser {
 // @pre `isdigit(c) || (Base == 16 && isxdigit(c))`
 // @warning can leave `x` in an intermediate state when retuning `false`
 template <int Base, class T>
-bool add_ascii(T& x, char c, std::enable_if_t<std::is_integral_v<T>, int> = 0) {
+bool add_ascii(T& x, char c, enable_if_tt<std::is_integral<T>, int> u = 0) {
+  CAF_IGNORE_UNUSED(u);
   if (x > (std::numeric_limits<T>::max() / Base))
     return false;
   x *= static_cast<T>(Base);
@@ -33,7 +33,8 @@ bool add_ascii(T& x, char c, std::enable_if_t<std::is_integral_v<T>, int> = 0) {
 
 template <int Base, class T>
 bool add_ascii(T& x, char c,
-               std::enable_if_t<std::is_floating_point_v<T>, int> = 0) {
+               enable_if_tt<std::is_floating_point<T>, int> u = 0) {
+  CAF_IGNORE_UNUSED(u);
   ascii_to_int<Base, T> f;
   x = (x * Base) + f(c);
   return true;

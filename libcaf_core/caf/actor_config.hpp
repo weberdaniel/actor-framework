@@ -1,18 +1,21 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
+#include <string>
+
+#include "caf/abstract_channel.hpp"
+#include "caf/behavior.hpp"
 #include "caf/detail/core_export.hpp"
 #include "caf/detail/unique_function.hpp"
 #include "caf/fwd.hpp"
-
-#include <string>
+#include "caf/input_range.hpp"
 
 namespace caf {
 
-/// Stores spawn-time settings and flags.
+/// Stores spawn-time flags and groups.
 class CAF_CORE_EXPORT actor_config {
 public:
   // -- member types -----------------------------------------------------------
@@ -21,16 +24,16 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  explicit actor_config(scheduler* sched = nullptr,
+  explicit actor_config(execution_unit* host = nullptr,
                         local_actor* parent = nullptr);
 
   // -- member variables -------------------------------------------------------
 
-  scheduler* sched;
+  execution_unit* host;
   local_actor* parent;
-  int flags = 0;
+  int flags;
+  input_range<const group>* groups;
   detail::unique_function<behavior(local_actor*)> init_fun;
-  detail::mailbox_factory* mbox_factory = nullptr;
 
   // -- properties -------------------------------------------------------------
 

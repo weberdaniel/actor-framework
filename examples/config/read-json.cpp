@@ -7,6 +7,7 @@
 #include "caf/type_id.hpp"
 
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <string_view>
 
@@ -46,33 +47,40 @@ CAF_END_TYPE_ID_BLOCK(example_app)
 int caf_main(caf::actor_system& sys) {
   // Get file path from config (positional argument).
   auto& cfg = sys.config();
-  auto remainder = cfg.remainder();
-  if (remainder.size() != 1) {
-    sys.println(
-      "*** expected one positional argument: path to a JSON file\n\n\nNote: "
-      "expected a JSON list of user objects. For example:\n{}",
-      example_input);
+  if (cfg.remainder.size() != 1) {
+    std::cerr << "*** expected one positional argument: path to a JSON file\n";
     return EXIT_FAILURE;
   }
-  auto& file_path = remainder[0];
-  // Read JSON-formatted file.
+  auto& file_path = cfg.remainder[0];
+  // Read file into a string.
+  std::ifstream input{file_path};
+  if (!input) {
+    std::cerr << "*** unable to open input file '" << file_path << "'\n";
+    return EXIT_FAILURE;
+  }
+  std::string json{std::istreambuf_iterator<char>{input},
+                   std::istreambuf_iterator<char>{}};
+  // Parse the JSON-formatted text.
   caf::json_reader reader;
-  if (!reader.load_file(file_path)) {
-    sys.println("*** failed to parse JSON file: {}\n", reader.get_error());
+  if (!reader.load(json)) {
+    std::cerr << "*** failed to parse JSON input: "
+              << to_string(reader.get_error()) << '\n';
     return EXIT_FAILURE;
   }
   // Deserialize our user list from the parsed JSON.
   user_list users;
   if (!reader.apply(users)) {
-    sys.println("*** failed to deserialize the user list: {}\n\n Note: "
-                "expected a JSON list of user objects. For example: {}\n",
-                reader.get_error(), example_input);
+    std::cerr
+      << "*** failed to deserialize the user list: "
+      << to_string(reader.get_error())
+      << "\n\nNote: expected a JSON list of user objects. For example:\n"
+      << example_input << '\n';
     return EXIT_FAILURE;
   }
   // Print the list in "CAF format".
-  sys.println("Entries loaded from file:\n");
+  std::cout << "Entries loaded from file:\n";
   for (auto& entry : users)
-    sys.println("- {}", entry);
+    std::cout << "- " << caf::deep_to_string(entry) << '\n';
   return EXIT_SUCCESS;
 }
 

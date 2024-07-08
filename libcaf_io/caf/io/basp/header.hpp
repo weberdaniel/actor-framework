@@ -1,17 +1,16 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/io/basp/message_type.hpp"
+#include <cstdint>
+#include <string>
 
 #include "caf/detail/io_export.hpp"
 #include "caf/error.hpp"
+#include "caf/io/basp/message_type.hpp"
 #include "caf/node_id.hpp"
-
-#include <cstdint>
-#include <string>
 
 namespace caf::io::basp {
 
@@ -24,8 +23,8 @@ namespace caf::io::basp {
 /// header.
 struct header {
   message_type operation;
-  uint8_t padding1 = 0;
-  uint8_t padding2 = 0;
+  uint8_t padding1;
+  uint8_t padding2;
   uint8_t flags;
   uint32_t payload_len;
   uint64_t operation_data;
@@ -71,6 +70,14 @@ bool inspect(Inspector& f, header& x) {
                             f.field("operation_data", x.operation_data),
                             f.field("source_actor", x.source_actor),
                             f.field("dest_actor", x.dest_actor));
+}
+
+/// @relates header
+CAF_IO_EXPORT bool operator==(const header& lhs, const header& rhs);
+
+/// @relates header
+inline bool operator!=(const header& lhs, const header& rhs) {
+  return !(lhs == rhs);
 }
 
 /// Checks whether given header contains a handshake.

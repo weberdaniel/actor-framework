@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -32,8 +32,7 @@ public:
     }
 
     template <class ErrorPolicy, class TimePoint>
-    read_result
-    pull(ErrorPolicy policy, T& item, [[maybe_unused]] TimePoint timeout) {
+    read_result pull(ErrorPolicy policy, T& item, TimePoint timeout) {
       if (!buf_) {
         return abort_reason_ ? read_result::abort : read_result::stop;
       }
@@ -46,7 +45,6 @@ public:
           return read_result::try_again_later;
       }
       auto [again, n] = buf_->pull_unsafe(guard, policy, 1u, *this);
-      guard.unlock();
       if (!again) {
         buf_ = nullptr;
       }
@@ -69,7 +67,6 @@ public:
     }
 
     void on_complete() {
-      // nop
     }
 
     void on_error(const caf::error& abort_reason) {
@@ -181,7 +178,7 @@ public:
   }
 
   error abort_reason() const {
-    return impl_->abort_reason();
+    impl_->abort_reason();
   }
 
 private:

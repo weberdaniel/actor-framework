@@ -1,6 +1,6 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
@@ -55,9 +55,21 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  explicit config_value_reader(const config_value* input);
+  config_value_reader(const config_value* input, actor_system& sys)
+    : super(sys) {
+    st_.push(input);
+    has_human_readable_format_ = true;
+  }
 
-  config_value_reader(const config_value* input, actor_system& sys);
+  config_value_reader(const config_value* input, execution_unit* ctx)
+    : super(ctx) {
+    st_.push(input);
+    has_human_readable_format_ = true;
+  }
+  explicit config_value_reader(const config_value* input)
+    : config_value_reader(input, nullptr) {
+    // nop
+  }
 
   ~config_value_reader() override;
 

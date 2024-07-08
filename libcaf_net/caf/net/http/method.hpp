@@ -1,11 +1,12 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
 #include "caf/default_enum_inspect.hpp"
 #include "caf/detail/net_export.hpp"
+#include "caf/net/http/fwd.hpp"
 
 #include <cstdint>
 #include <string>
@@ -52,7 +53,7 @@ CAF_NET_EXPORT std::string to_string(method);
 
 /// Converts @p x to the RFC string representation, i.e., all-uppercase.
 /// @relates method
-CAF_NET_EXPORT std::string_view to_rfc_string(method x) noexcept;
+CAF_NET_EXPORT std::string to_rfc_string(method x);
 
 /// @relates method
 CAF_NET_EXPORT bool from_string(std::string_view, method&);

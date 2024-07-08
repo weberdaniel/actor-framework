@@ -1,19 +1,14 @@
 // This file is part of CAF, the C++ Actor Framework. See the file LICENSE in
 // the main distribution directory for license terms and copyright or visit
-// https://github.com/actor-framework/actor-framework/blob/main/LICENSE.
+// https://github.com/actor-framework/actor-framework/blob/master/LICENSE.
 
 #pragma once
 
-#include "caf/actor_clock.hpp"
 #include "caf/async/execution_context.hpp"
 #include "caf/async/fwd.hpp"
-#include "caf/detail/assert.hpp"
 #include "caf/detail/async_cell.hpp"
-#include "caf/detail/beacon.hpp"
 #include "caf/disposable.hpp"
 #include "caf/error.hpp"
-#include "caf/flow/observable.hpp"
-#include "caf/flow/op/cell.hpp"
 #include "caf/sec.hpp"
 
 namespace caf::async {
@@ -38,8 +33,7 @@ public:
   disposable then(OnSuccess on_success, OnError on_error) {
     static_assert(std::is_invocable_v<OnSuccess, const T&>);
     static_assert(std::is_invocable_v<OnError, const error&>);
-    auto cb = [cp = cell_, f = std::move(on_success),
-               g = std::move(on_error)]() mutable {
+    auto cb = [cp = cell_, f = std::move(on_success), g = std::move(on_error)] {
       // Note: no need to lock the mutex. Once the cell has a value and actions
       // are allowed to run, the value is immutable.
       switch (cp->value.index()) {
@@ -54,8 +48,18 @@ public:
       }
     };
     auto cb_action = make_single_shot_action(std::move(cb));
-    if (!cell_->subscribe(ctx_, cb_action))
-      ctx_->schedule(cb_action);
+    auto event = typename cell_type::event{ctx_, cb_action};
+    bool fire_immediately = false;
+    { // Critical section.
+      std::unique_lock guard{cell_->mtx};
+      if (std::holds_alternative<none_t>(cell_->value)) {
+        cell_->events.push_back(std::move(event));
+      } else {
+        fire_immediately = true;
+      }
+    }
+    if (fire_immediately)
+      event.first->schedule(std::move(event.second));
     auto res = std::move(cb_action).as_disposable();
     ctx_->watch(res);
     return res;
@@ -78,8 +82,6 @@ private:
 /// Represents the result of an asynchronous computation.
 template <class T>
 class future {
-  using res_t = expected<T>;
-
 public:
   friend class promise<T>;
 
@@ -125,17 +127,6 @@ public:
     return {&ctx, cell_};
   }
 
-  /// Binds this future to a @ref coordinator and converts it to an
-  /// @ref observable.
-  /// @pre `valid()`
-  flow::observable<T> observe_on(flow::coordinator* ctx) const {
-    using flow_cell_t = flow::op::cell<T>;
-    auto ptr = make_counted<flow_cell_t>(ctx);
-    bind_to(ctx).then([ptr](const T& val) { ptr->set_value(val); },
-                      [ptr](const error& what) { ptr->set_error(what); });
-    return flow::observable<T>{ptr};
-  }
-
   /// Queries whether the result of the asynchronous computation is still
   /// pending, i.e., neither `set_value` nor `set_error` has been called on the
   /// @ref promise.
@@ -144,50 +135,6 @@ public:
     CAF_ASSERT(valid());
     std::unique_lock guard{cell_->mtx};
     return std::holds_alternative<none_t>(cell_->value);
-  }
-
-  auto get() {
-    auto sync = make_counted<detail::beacon>();
-    if (cell_->subscribe(nullptr, action{sync})) {
-      std::ignore = sync->wait();
-    }
-    std::unique_lock guard{cell_->mtx};
-    switch (cell_->value.index()) {
-      default:
-        return res_t{sec::broken_promise};
-      case 1:
-        if constexpr (std::is_void_v<T>)
-          return res_t{};
-        else
-          return res_t{std::get<T>(cell_->value)};
-      case 2:
-        return res_t{std::get<error>(cell_->value)};
-    }
-  }
-
-  template <class Clock, class Duration>
-  auto get(std::chrono::time_point<Clock, Duration> timepoint) {
-    auto sync = make_counted<detail::beacon>();
-    if (cell_->subscribe(nullptr, action{sync})) {
-      std::ignore = sync->wait_until(timepoint);
-    }
-    std::unique_lock guard{cell_->mtx};
-    switch (cell_->value.index()) {
-      default:
-        return res_t{make_error(sec::future_timeout)};
-      case 1:
-        if constexpr (std::is_void_v<T>)
-          return res_t{};
-        else
-          return res_t{std::get<T>(cell_->value)};
-      case 2:
-        return res_t{std::get<error>(cell_->value)};
-    }
-  }
-
-  template <class Rep, class Period>
-  auto get(std::chrono::duration<Rep, Period> timeout) {
-    return get(std::chrono::steady_clock::now() + timeout);
   }
 
 private:
